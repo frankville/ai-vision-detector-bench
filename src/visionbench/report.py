@@ -87,6 +87,7 @@ class Row:
     profile: str
     device: str
     precision: str
+    mode: str
     processed_fps: float | None
     realtime_factor: float | None
     capacity_streams: float | None
@@ -114,6 +115,7 @@ def to_row(data: dict) -> Row:
         profile=data.get("profile", "?"),
         device=_get(data, "model", "device", default="?"),
         precision=_get(data, "model", "precision", default="fp32"),
+        mode=_get(data, "source", "mode", default="?"),
         processed_fps=_get(data, "throughput", "processed_fps"),
         realtime_factor=_get(data, "throughput", "realtime_factor"),
         capacity_streams=_get(data, "throughput", "capacity_streams"),
@@ -133,6 +135,7 @@ COLUMNS = [
     ("Licence", lambda r: r.license),
     ("Host", lambda r: r.profile),
     ("Device", lambda r: f"{r.device}/{r.precision}"),
+    ("Mode", lambda r: r.mode),
     ("FPS", lambda r: _fmt(r.processed_fps)),
     ("Real time", lambda r: r.verdict),
     ("Streams", lambda r: _fmt(r.capacity_streams, 2)),
@@ -148,7 +151,7 @@ COLUMNS = [
 #: Terminal default. Fourteen columns do not fit an 80-column terminal, and a
 #: table that wraps every cell is harder to read than one that omits what is
 #: usually constant across a sweep.
-COMPACT = {"Model", "FPS", "Real time", "Infer p50", "Infer p95", "E2E p95", "Drop", "Det/frame"}
+COMPACT = {"Model", "Mode", "FPS", "Real time", "Infer p50", "Infer p95", "Drop", "Det/frame"}
 
 
 def _sorted_rows(results: list[dict]) -> list[Row]:

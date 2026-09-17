@@ -16,6 +16,8 @@ visionbench sweep -s rtsp://camera/stream --all-permissive -d 60
 visionbench report --markdown
 ```
 
+![Dashboard showing a live detection view with per-stage latency and resource metrics](docs/dashboard.png)
+
 ## What it measures
 
 | Group | Metrics |
@@ -78,6 +80,31 @@ catalogue. See [docs/licensing.md](docs/licensing.md).
 Adding a model that follows the Hugging Face `AutoModelForObjectDetection`
 contract costs one registry entry and no code.
 
+## First results
+
+One machine so far. The sample clip is 768x576 at 10 fps, filtered to the
+`person` class, fp32, Apple Silicon GPU through Metal.
+
+| Model | Mode | FPS | Streams | Infer p50 | Infer p95 | E2E p95 | GPU mem |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| dfine-nano | sequential | 27.7 | 2.77 | 28.1 ms | 31.8 ms | 39.8 ms | 30 MB |
+| dfine-small | sequential | 20.1 | 2.01 | 40.8 ms | 50.8 ms | 58.5 ms | 82 MB |
+| rtdetrv2-r18 | sequential | 15.6 | 1.56 | 54.9 ms | 63.5 ms | 71.3 ms | 125 MB |
+| dfine-nano | realtime | 10.0 | 1.00 | 35.7 ms | 39.9 ms | 47.7 ms | 20 MB |
+| detr-r50 | sequential | 5.5 | 0.55 | 162.4 ms | 199.8 ms | 210.7 ms | 269 MB |
+
+Host: Apple M1 Pro, 16 GB, `mps`. Reproduce with
+`visionbench sweep -s clips/vtest.avi -m dfine-nano,dfine-small,rtdetrv2-r18,detr-r50 --mode sequential -d 20 -c person`.
+
+Two things worth reading off this. D-FINE Nano is five times the throughput of
+DETR ResNet-50 for a ninth of the GPU memory, which is the gap between one box
+serving two cameras and one box not managing a single one. And the realtime row
+is the same model against the same clip played at camera speed: it settles at
+exactly the stream rate with nothing dropped, which is what headroom looks like.
+
+Raw JSON for every run is under [`benchmarks/`](benchmarks), including host
+fingerprint, per-stage percentiles and resource counters.
+
 ## Install
 
 ```bash
@@ -112,7 +139,17 @@ visionbench sweep -s "rtsp://user:pass@host:554/stream" \
 # comparison table across everything recorded so far
 visionbench report
 visionbench report --markdown
+
+# dashboard: live view, live metrics, saved results
+visionbench serve
 ```
+
+The dashboard runs the same loop as the CLI and reads its progress from the same
+meters, so what the browser shows cannot drift from what lands in the result
+file. Annotating and encoding frames for the preview does cost CPU inside the
+measured loop, so a watched run reports slightly lower throughput than the same
+run headless. Runs started from the browser are tagged in their result file for
+exactly that reason. Publish numbers from the CLI.
 
 Results are written to `benchmarks/<host-profile>/` as JSON, one file per run,
 and are meant to be committed. Comparing the same model across an Apple M-series
@@ -143,7 +180,7 @@ Being explicit, because a benchmark that overstates itself is worse than none.
 - [x] Stage-level timing and resource telemetry
 - [x] DETR, RT-DETRv2, D-FINE, RF-DETR adapters
 - [x] JSON results and comparison tables
-- [ ] FastAPI dashboard with an MJPEG view and live metrics
+- [x] FastAPI dashboard with an MJPEG view and live metrics
 - [ ] Multi-object tracking and zone crossing counts
 - [ ] Labelled evaluation set with precision, recall and mAP
 - [ ] Cross-model agreement analysis, which needs no labels

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -104,17 +103,17 @@ def run_cmd(
     source: str = typer.Option(..., "-s", "--source", help="File path, RTSP URL, or MJPEG URL."),
     model: str = typer.Option("dfine-nano", "-m", "--model", help="Registry key."),
     duration: float = typer.Option(30.0, "-d", "--duration", help="Seconds to run."),
-    frames: Optional[int] = typer.Option(None, "--frames", help="Stop after N frames instead."),
+    frames: int | None = typer.Option(None, "--frames", help="Stop after N frames instead."),
     device: str = typer.Option("auto", "--device", help="auto | cpu | cuda | mps"),
     confidence: float = typer.Option(0.3, "--conf", help="Detection score threshold."),
-    classes: Optional[list[str]] = typer.Option(
+    classes: list[str] | None = typer.Option(
         None, "-c", "--class", help="Keep only these class names, e.g. -c person."
     ),
     mode: str = typer.Option("realtime", "--mode", help="realtime | sequential"),
-    imgsz: Optional[int] = typer.Option(None, "--imgsz", help="Override model input size."),
+    imgsz: int | None = typer.Option(None, "--imgsz", help="Override model input size."),
     precision: str = typer.Option("fp32", "--precision", help="fp32 | fp16"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Label for this machine."),
-    pace_fps: Optional[float] = typer.Option(
+    profile: str | None = typer.Option(None, "--profile", help="Label for this machine."),
+    pace_fps: float | None = typer.Option(
         None, "--pace-fps", help="Replay a file at this rate to imitate a camera."
     ),
     save: bool = typer.Option(True, "--save/--no-save"),
@@ -149,19 +148,19 @@ def run_cmd(
 @app.command("sweep")
 def sweep_cmd(
     source: str = typer.Option(..., "-s", "--source"),
-    models: Optional[list[str]] = typer.Option(None, "-m", "--model"),
+    models: list[str] | None = typer.Option(None, "-m", "--model"),
     all_permissive: bool = typer.Option(
         False, "--all-permissive", help="Every model with a permissive licence."
     ),
     duration: float = typer.Option(30.0, "-d", "--duration"),
     device: str = typer.Option("auto", "--device"),
     confidence: float = typer.Option(0.3, "--conf"),
-    classes: Optional[list[str]] = typer.Option(None, "-c", "--class"),
+    classes: list[str] | None = typer.Option(None, "-c", "--class"),
     mode: str = typer.Option("realtime", "--mode"),
-    imgsz: Optional[int] = typer.Option(None, "--imgsz"),
+    imgsz: int | None = typer.Option(None, "--imgsz"),
     precision: str = typer.Option("fp32", "--precision"),
-    profile: Optional[str] = typer.Option(None, "--profile"),
-    pace_fps: Optional[float] = typer.Option(None, "--pace-fps"),
+    profile: str | None = typer.Option(None, "--profile"),
+    pace_fps: float | None = typer.Option(None, "--pace-fps"),
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out"),
 ) -> None:
     """Run several models against the same source, one after another."""
@@ -218,7 +217,7 @@ def report_cmd(
     directory: Path = typer.Argument(report_mod.DEFAULT_DIR, help="Results directory."),
     markdown: bool = typer.Option(False, "--markdown", help="Emit a README-ready table."),
     full: bool = typer.Option(False, "--full", help="Show every column, not the compact set."),
-    limit: Optional[int] = typer.Option(None, "--limit", help="Only the N most recent runs."),
+    limit: int | None = typer.Option(None, "--limit", help="Only the N most recent runs."),
 ) -> None:
     """Render saved results as a comparison table."""
     results = report_mod.load_all(directory)

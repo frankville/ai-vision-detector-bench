@@ -9,6 +9,7 @@ guessed at.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass, field
@@ -69,10 +70,8 @@ class _NVMLProbe:
         return out
 
     def shutdown(self) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self._nvml.nvmlShutdown()
-        except Exception:
-            pass
 
 
 class _MPSProbe:

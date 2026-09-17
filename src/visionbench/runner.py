@@ -91,8 +91,15 @@ def run(
     cfg: RunConfig,
     on_frame: FrameHook | None = None,
     should_stop: Callable[[], bool] | None = None,
+    on_progress: Callable[[dict], None] | None = None,
+    progress_every_s: float = 0.5,
 ) -> RunResult:
-    """Execute one benchmark run and return its result."""
+    """Execute one benchmark run and return its result.
+
+    `on_progress` receives a live snapshot built from the same meters that
+    produce the final result, so a dashboard watching a run cannot drift away
+    from the numbers that get written to disk.
+    """
     warnings: list[str] = []
     profile = cfg.profile or default_profile()
 
@@ -137,6 +144,7 @@ def run(
 
         sampler.start()
         loop_started = time.perf_counter()
+        last_progress = loop_started
         deadline = loop_started + cfg.duration_s if cfg.duration_s else float("inf")
 
         while True:
@@ -175,6 +183,30 @@ def run(
 
             if on_frame is not None:
                 on_frame(frame, detections, timings)
+
+            if on_progress is not None and ready_at - last_progress >= progress_every_s:
+                last_progress = ready_at
+                live = source.stats()
+                on_progress(
+                    {
+                        "elapsed_s": round(ready_at - loop_started, 2),
+                        "frames_processed": count,
+                        "frames_decoded": live.frames_decoded,
+                        "frames_dropped": live.frames_dropped,
+                        "drop_ratio": round(
+                            live.frames_dropped / live.frames_decoded, 4
+                        )
+                        if live.frames_decoded
+                        else 0.0,
+                        "decode_fps": live.decode_fps,
+                        "processed_fps": processed.instant_fps,
+                        "processed_fps_mean": processed.mean_fps,
+                        "stages_ms": timers.recent(),
+                        "resources": sampler.snapshot(),
+                        "detections_last": len(detections),
+                        "detections_mean": round(per_frame_detections.recent_mean, 2),
+                    }
+                )
 
     except KeyboardInterrupt:
         warnings.append("run interrupted by user; results cover the frames completed so far")

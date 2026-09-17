@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ai-vision-detector-bench</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --ink: #e6e9ef;
+    --dim: #8b93a3; --accent: #5cc8ff; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  header h1 { margin: 0; font-size: 15px; letter-spacing: .02em; }
+  header .host { color: var(--dim); font-family: var(--mono); font-size: 12px; }
+  main { display: grid; grid-template-columns: 300px 1fr 300px; gap: 16px; padding: 16px; align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+  .panel h2 {
+    margin: 0 0 12px; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--dim); font-weight: 600;
+  }
+  label { display: block; margin-bottom: 10px; font-size: 12px; color: var(--dim); }
+  label > span { display: block; margin-bottom: 4px; }
+  input, select, button {
+    width: 100%; padding: 7px 9px; background: #10131a; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 5px; font: inherit; font-size: 13px;
+  }
+  input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  button {
+    cursor: pointer; font-weight: 600; margin-top: 6px;
+    background: var(--accent); color: #06121a; border-color: transparent;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.1); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+  #view { background: #000; border-radius: 6px; width: 100%; display: block; aspect-ratio: 16/9; object-fit: contain; }
+  .stat { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; }
+  .stat span:first-child { color: var(--dim); }
+  .stat span:last-child { font-family: var(--mono); }
+  .big { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .big div { background: #10131a; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  .big .k { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  .big .v { font-family: var(--mono); font-size: 19px; margin-top: 2px; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 11px; font-family: var(--mono); }
+  .badge.ok { background: rgba(74,222,128,.15); color: var(--ok); }
+  .badge.warn { background: rgba(251,191,36,.15); color: var(--warn); }
+  .badge.bad { background: rgba(248,113,113,.15); color: var(--bad); }
+  .note { color: var(--dim); font-size: 11.5px; line-height: 1.5; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--dim); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  td.num { font-family: var(--mono); text-align: right; }
+  .wide { grid-column: 1 / -1; overflow-x: auto; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ai-vision-detector-bench</h1>
+  <div class="host" id="host">reading host...</div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Run</h2>
+    <label><span>Source</span>
+      <input id="source" value="clips/vtest.avi" placeholder="file path or rtsp:// url">
+    </label>
+    <label><span>Model</span><select id="model"></select></label>
+    <div id="licence" class="note"></div>
+    <div class="row">
+      <label><span>Duration (s)</span><input id="duration" type="number" value="60" min="5"></label>
+      <label><span>Confidence</span><input id="conf" type="number" value="0.3" step="0.05" min="0" max="1"></label>
+    </div>
+    <div class="row">
+      <label><span>Mode</span>
+        <select id="mode">
+          <option value="realtime">realtime</option>
+          <option value="sequential">sequential</option>
+        </select>
+      </label>
+      <label><span>Device</span>
+        <select id="device">
+          <option value="auto">auto</option>
+          <option value="cpu">cpu</option>
+          <option value="mps">mps</option>
+          <option value="cuda">cuda</option>
+        </select>
+      </label>
+    </div>
+    <label><span>Classes (blank = all)</span><input id="classes" value="person" placeholder="person, car"></label>
+    <button id="start">Start run</button>
+    <button id="stop" class="secondary" disabled>Stop</button>
+    <p class="note">
+      Watching a run live costs CPU for annotation and JPEG encoding inside the
+      measured loop, so throughput here reads a little lower than the same run
+      headless. Use <code>visionbench run</code> for numbers you intend to publish.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>Live view</h2>
+    <img id="view" alt="detection output">
+    <div class="note" id="status">Idle.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Metrics</h2>
+    <div class="big">
+      <div><div class="k">FPS</div><div class="v" id="m-fps">-</div></div>
+      <div><div class="k">Infer</div><div class="v" id="m-infer">-</div></div>
+      <div><div class="k">Drop</div><div class="v" id="m-drop">-</div></div>
+    </div>
+    <div id="stats"></div>
+    <div id="verdict" class="note"></div>
+  </section>
+
+  <section class="panel wide">
+    <h2>Saved results</h2>
+    <div id="results">No runs recorded yet.</div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let sessionId = null, events = null, models = [];
+
+const fmt = (v, digits = 1, suffix = "") =>
+  (v === null || v === undefined || Number.isNaN(v)) ? "-" : Number(v).toFixed(digits) + suffix;
+
+async function loadHost() {
+  const h = await (await fetch("/api/host")).json();
+  const cpu = h.host.cpu_model, ram = h.host.ram_total_gb;
+  const gpu = h.host.torch.gpu_name ? ` · ${h.host.torch.gpu_name}` : "";
+  $("host").textContent = `${h.profile} · ${cpu} · ${ram} GB · device ${h.device}${gpu}`;
+  $("device").value = "auto";
+}
+
+async function loadModels() {
+  models = await (await fetch("/api/models")).json();
+  const select = $("model");
+  select.innerHTML = "";
+  for (const m of models) {
+    const option = document.createElement("option");
+    option.value = m.key;
+    option.textContent = `${m.name}${m.permissive ? "" : "  (restricted licence)"}`;
+    select.appendChild(option);
+  }
+  select.value = "dfine-nano";
+  select.addEventListener("change", showLicence);
+  showLicence();
+}
+
+function showLicence() {
+  const m = models.find((x) => x.key === $("model").value);
+  if (!m) return;
+  const cls = m.permissive ? "ok" : "bad";
+  const extra = m.extra ? ` Needs the <code>${m.extra}</code> extra.` : "";
+  $("licence").innerHTML =
+    `<span class="badge ${cls}">${m.license}</span> commercial use: ${m.commercial}.${extra}` +
+    (m.notes ? `<br>${m.notes}` : "");
+}
+
+async function loadResults() {
+  const data = await (await fetch("/api/results")).json();
+  if (!data.count) { $("results").textContent = "No runs recorded yet."; return; }
+  const cols = [
+    ["Model", (r) => r.model], ["Licence", (r) => r.license], ["Host", (r) => r.profile],
+    ["Device", (r) => `${r.device}/${r.precision}`],
+    ["FPS", (r) => fmt(r.processed_fps), 1], ["Streams", (r) => fmt(r.capacity_streams, 2), 1],
+    ["Infer p50", (r) => fmt(r.infer_p50, 1, " ms"), 1], ["Infer p95", (r) => fmt(r.infer_p95, 1, " ms"), 1],
+    ["E2E p95", (r) => fmt(r.e2e_p95, 1, " ms"), 1], ["Drop", (r) => fmt(r.drop_pct, 1, " %"), 1],
+    ["GPU mem", (r) => fmt(r.gpu_mem_mb, 0, " MB"), 1], ["Det/frame", (r) => fmt(r.detections_per_frame, 2), 1],
+  ];
+  const head = cols.map(([name]) => `<th>${name}</th>`).join("");
+  const body = data.rows.map((r) =>
+    "<tr>" + cols.map(([, get, num]) => `<td class="${num ? "num" : ""}">${get(r)}</td>`).join("") + "</tr>"
+  ).join("");
+  $("results").innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderProgress(status) {
+  const p = status.progress || {};
+  $("m-fps").textContent = fmt(p.processed_fps);
+  $("m-infer").textContent = fmt((p.stages_ms || {}).inference_ms, 0, " ms");
+  $("m-drop").textContent = fmt((p.drop_ratio || 0) * 100, 1, "%");
+
+  const stages = p.stages_ms || {}, res = p.resources || {};
+  const rows = [
+    ["elapsed", fmt(p.elapsed_s, 1, " s")],
+    ["processed / decoded", `${p.frames_processed ?? "-"} / ${p.frames_decoded ?? "-"}`],
+    ["dropped", p.frames_dropped ?? "-"],
+    ["decode fps", fmt(p.decode_fps)],
+    ["preprocess", fmt(stages.preprocess_ms, 1, " ms")],
+    ["inference", fmt(stages.inference_ms, 1, " ms")],
+    ["postprocess", fmt(stages.postprocess_ms, 1, " ms")],
+    ["capture to result", fmt(stages.end_to_end_ms, 1, " ms")],
+    ["objects / frame", fmt(p.detections_mean, 2)],
+    ["process cpu", fmt(res.process_cpu_pct, 0, " %")],
+    ["resident memory", fmt(res.process_rss_mb, 0, " MB")],
+    ["gpu memory", fmt(res.gpu_mem_used_mb, 0, " MB")],
+    ["gpu utilisation", res.gpu_util_pct === undefined ? "not measurable here" : fmt(res.gpu_util_pct, 0, " %")],
+  ];
+  $("stats").innerHTML = rows
+    .map(([k, v]) => `<div class="stat"><span>${k}</span><span>${v}</span></div>`).join("");
+
+  if (status.result) {
+    const t = status.result.throughput;
+    const keeps = t.realtime_factor === null || t.realtime_factor >= 0.97;
+    const cls = keeps ? "ok" : "bad";
+    const text = t.realtime_factor === null ? "finished"
+      : keeps ? "keeps up with this stream" : `falls behind at ${t.realtime_factor.toFixed(2)}x`;
+    $("verdict").innerHTML =
+      `<span class="badge ${cls}">${text}</span><br>` +
+      `${t.frames_processed} frames at ${fmt(t.processed_fps)} fps, ` +
+      `estimated ${fmt(t.capacity_streams, 2)} stream(s) per host.` +
+      (status.result.warnings || []).map((w) => `<br><span class="badge warn">note</span> ${w}`).join("");
+  }
+}
+
+async function start() {
+  const classes = $("classes").value.split(",").map((s) => s.trim()).filter(Boolean);
+  const body = {
+    source: $("source").value.trim(),
+    model: $("model").value,
+    duration_s: Number($("duration").value),
+    device: $("device").value,
+    confidence: Number($("conf").value),
+    mode: $("mode").value,
+    classes: classes.length ? classes : null,
+  };
+  const response = await fetch("/api/sessions", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    $("status").textContent = `Could not start: ${(await response.json()).detail}`;
+    return;
+  }
+  const status = await response.json();
+  sessionId = status.id;
+  $("start").disabled = true;
+  $("stop").disabled = false;
+  $("verdict").innerHTML = "";
+  $("status").textContent = `Running ${status.model} against ${status.source}...`;
+  $("view").src = `/api/sessions/${sessionId}/stream.mjpg?t=${Date.now()}`;
+
+  events = new EventSource(`/api/sessions/${sessionId}/events`);
+  events.onmessage = (event) => {
+    const status = JSON.parse(event.data);
+    renderProgress(status);
+    if (status.state === "failed") {
+      $("status").textContent = `Failed: ${status.error}`;
+    } else if (!["starting", "running"].includes(status.state)) {
+      $("status").textContent = `Run ${status.state} after ${status.result?.elapsed_s ?? "?"} s.`;
+    }
+  };
+  events.addEventListener("done", () => finish());
+  events.onerror = () => finish();
+}
+
+async function finish() {
+  if (events) { events.close(); events = null; }
+  $("start").disabled = false;
+  $("stop").disabled = true;
+  if (sessionId) {
+    try {
+      const status = await (await fetch(`/api/sessions/${sessionId}`)).json();
+      renderProgress(status);
+      if (status.result) await fetch(`/api/sessions/${sessionId}/save`, { method: "POST" });
+    } catch (_) { /* session may have been evicted */ }
+  }
+  loadResults();
+}
+
+$("start").addEventListener("click", start);
+$("stop").addEventListener("click", async () => {
+  if (sessionId) await fetch(`/api/sessions/${sessionId}/stop`, { method: "POST" });
+  $("status").textContent = "Stopping...";
+});
+
+loadHost(); loadModels(); loadResults();
+</script>
+</body>
+</html>
