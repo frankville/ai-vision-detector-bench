@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "profile": "apple-m1-pro",
+  "started_at": "2026-09-17T20:16:02-0300",
+  "elapsed_s": 20.006,
+  "config": {
+    "source": "vtest.avi",
+    "model": "dfine-small",
+    "device": "auto",
+    "duration_s": 20.0,
+    "max_frames": null,
+    "confidence": 0.3,
+    "classes": [
+      "person"
+    ],
+    "mode": "sequential",
+    "imgsz": null,
+    "precision": "fp32",
+    "profile": null,
+    "warmup_frames": 5,
+    "pace_fps": null,
+    "loop": true,
+    "note": ""
+  },
+  "host": {
+    "os": "Darwin 24.6.0",
+    "platform": "macOS-15.7.7-arm64-arm-64bit",
+    "arch": "arm64",
+    "cpu_model": "Apple M1 Pro",
+    "cpu_cores_physical": 8,
+    "cpu_cores_logical": 8,
+    "ram_total_gb": 16.0,
+    "python": "3.12.7",
+    "torch": {
+      "available": true,
+      "version": "2.14.0",
+      "cuda_available": false,
+      "mps_available": true
+    }
+  },
+  "model": {
+    "key": "dfine-small",
+    "display_name": "D-FINE Small",
+    "license": "Apache-2.0",
+    "weights": "ustc-community/dfine-small-coco",
+    "device": "mps",
+    "confidence": 0.3,
+    "imgsz": null,
+    "parameters_m": 10.31,
+    "precision": "fp32",
+    "input_shape": [
+      1,
+      3,
+      640,
+      640
+    ]
+  },
+  "source": {
+    "label": "vtest.avi",
+    "mode": "sequential",
+    "width": 768,
+    "height": 576,
+    "nominal_fps": 10.0,
+    "reconnects": 0
+  },
+  "throughput": {
+    "frames_decoded": 404,
+    "frames_processed": 404,
+    "frames_dropped": 0,
+    "drop_ratio": 0.0,
+    "decode_fps": 20.152,
+    "processed_fps": 20.144,
+    "stream_fps_reference": 10.0,
+    "realtime_factor": 2.014,
+    "capacity_streams": 2.01
+  },
+  "latency": {
+    "preprocess_ms": {
+      "count": 404,
+      "mean": 3.822,
+      "p50": 3.366,
+      "p95": 5.378,
+      "p99": 8.329,
+      "max": 53.541
+    },
+    "inference_ms": {
+      "count": 404,
+      "mean": 42.258,
+      "p50": 40.809,
+      "p95": 50.814,
+      "p99": 54.986,
+      "max": 79.477
+    },
+    "postprocess_ms": {
+      "count": 404,
+      "mean": 2.571,
+      "p50": 2.346,
+      "p95": 3.546,
+      "p99": 6.73,
+      "max": 10.763
+    },
+    "model_total_ms": {
+      "count": 404,
+      "mean": 48.651,
+      "p50": 46.665,
+      "p95": 58.18,
+      "p99": 63.607,
+      "max": 105.608
+    },
+    "end_to_end_ms": {
+      "count": 404,
+      "mean": 48.979,
+      "p50": 47.016,
+      "p95": 58.457,
+      "p99": 64.076,
+      "max": 107.495
+    }
+  },
+  "resources": {
+    "samples": 39,
+    "interval_s": 0.5,
+    "logical_cores": 8,
+    "gpu_backend": {
+      "kind": "mps",
+      "name": "Apple Silicon GPU (Metal)",
+      "total_memory_mb": null,
+      "utilisation_available": false,
+      "power_available": false,
+      "note": "Apple Silicon reports PyTorch-allocated GPU memory only. Utilisation and power require powermetrics with root and are reported as null rather than estimated."
+    },
+    "counters": {
+      "process_cpu_pct": {
+        "count": 39,
+        "mean": 73.418,
+        "p50": 74.0,
+        "p95": 77.84,
+        "p99": 78.51,
+        "max": 78.7
+      },
+      "system_cpu_pct": {
+        "count": 39,
+        "mean": 30.441,
+        "p50": 28.9,
+        "p95": 43.27,
+        "p99": 52.558,
+        "max": 52.9
+      },
+      "process_rss_mb": {
+        "count": 39,
+        "mean": 456.085,
+        "p50": 514.672,
+        "p95": 532.077,
+        "p99": 534.234,
+        "max": 534.531
+      },
+      "system_mem_used_pct": {
+        "count": 39,
+        "mean": 85.554,
+        "p50": 85.6,
+        "p95": 86.4,
+        "p99": 86.524,
+        "max": 86.6
+      },
+      "gpu_mem_used_mb": {
+        "count": 39,
+        "mean": 81.859,
+        "p50": 102.344,
+        "p95": 105.192,
+        "p99": 105.192,
+        "max": 105.192
+      },
+      "gpu_mem_driver_mb": {
+        "count": 39,
+        "mean": 1179.804,
+        "p50": 1179.797,
+        "p95": 1179.812,
+        "p99": 1179.812,
+        "max": 1179.812
+      }
+    },
+    "energy_per_frame_j": null
+  },
+  "detections": {
+    "per_frame": {
+      "count": 404,
+      "mean": 10.272,
+      "p50": 10.0,
+      "p95": 15.0,
+      "p99": 17.0,
+      "max": 19.0
+    },
+    "confidence": {
+      "count": 404,
+      "mean": 0.684,
+      "p50": 0.683,
+      "p95": 0.769,
+      "p99": 0.81,
+      "max": 0.901
+    },
+    "class_totals": {
+      "person": 4150
+    },
+    "total": 4150,
+    "frames_with_detections": 404
+  },
+  "warnings": [
+    "sequential mode processes every frame, so drop counts are always zero; use --mode realtime to measure whether the host keeps up with a live stream"
+  ]
+}

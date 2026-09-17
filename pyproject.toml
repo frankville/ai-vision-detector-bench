@@ -1,0 +1,58 @@
+[project]
+name = "visionbench"
+version = "0.1.0"
+description = "Benchmark and compare real-time object detection models on live video streams."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Francisco Villasanti" }]
+keywords = ["object-detection", "rtsp", "benchmark", "detr", "computer-vision"]
+
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.10",
+    "pillow>=10.0",
+    "psutil>=6.0",
+    "torch>=2.4",
+    "torchvision>=0.19",
+    "transformers>=4.51",
+    # DETR checkpoints load their ResNet backbone through TimmBackbone.
+    "timm>=1.0",
+    "typer>=0.12",
+    "rich>=13.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+]
+
+[project.optional-dependencies]
+# RF-DETR ships its own weights loader. Apache-2.0 for nano/small/base;
+# the Plus variants (XL/2XL) are under Roboflow PML 1.0 and are NOT included.
+rfdetr = ["rfdetr>=1.1"]
+# NVIDIA telemetry: only needed on CUDA hosts.
+cuda = ["nvidia-ml-py>=12.0"]
+# Multi-object tracking and annotators (MIT).
+track = ["supervision>=0.25"]
+# AGPL-3.0. Reference baseline only, never a default. See docs/licensing.md.
+agpl-baseline = ["ultralytics>=8.3"]
+dev = ["ruff>=0.6", "pytest>=8.0"]
+
+[project.scripts]
+visionbench = "visionbench.cli:app"
+
+[project.urls]
+Repository = "https://github.com/frankville/ai-vision-detector-bench"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/visionbench"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

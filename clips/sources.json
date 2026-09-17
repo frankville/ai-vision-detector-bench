@@ -1,0 +1,13 @@
+{
+  "comment": "Sample clips fetched by scripts/fetch_clips.py. Only redistributable, permissively licensed footage belongs here. Never commit the video files themselves, and never add footage from a live deployment.",
+  "clips": [
+    {
+      "name": "vtest.avi",
+      "url": "https://raw.githubusercontent.com/opencv/opencv/master/samples/data/vtest.avi",
+      "description": "Pedestrians crossing a plaza from a fixed elevated camera. 768x576, 10 fps, 795 frames.",
+      "license": "Apache-2.0",
+      "attribution": "OpenCV sample data (opencv/opencv, samples/data/vtest.avi)",
+      "good_for": "person detection and tracking at a realistic surveillance angle"
+    }
+  ]
+}

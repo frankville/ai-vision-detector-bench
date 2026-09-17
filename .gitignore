@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Model weights and caches
+*.pt
+*.pth
+*.onnx
+*.engine
+.cache/
+checkpoints/
+
+# Media: clips are fetched by scripts/fetch_clips.py, never committed
+clips/*
+!clips/README.md
+!clips/sources.json
+*.mp4
+*.mkv
+*.avi
+*.mov
+!docs/**/*.gif
+
+# Run outputs
+runs/
+out/
+*.log
+
+# Local overrides: may contain stream URLs with credentials
+.env
+.env.*
+!.env.example
+local_sources.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
