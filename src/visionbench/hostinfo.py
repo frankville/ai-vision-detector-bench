@@ -68,9 +68,15 @@ def _torch_info() -> dict:
 
 @lru_cache(maxsize=1)
 def host_info() -> dict:
+    """Hardware and software fingerprint for a run.
+
+    Deliberately excludes the machine's hostname. Result files are meant to be
+    committed to a public repository, and hostnames routinely carry a person's
+    name or an employer's, neither of which tells you anything about how fast
+    the model ran. Use `--profile` to label a machine with a name you chose.
+    """
     virtual = psutil.virtual_memory()
     return {
-        "hostname": platform.node(),
         "os": f"{platform.system()} {platform.release()}",
         "platform": platform.platform(),
         "arch": platform.machine(),

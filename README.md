@@ -155,8 +155,26 @@ Results are written to `benchmarks/<host-profile>/` as JSON, one file per run,
 and are meant to be committed. Comparing the same model across an Apple M-series
 laptop, an older Intel box and a rented GPU instance is the point.
 
-Stream URLs are redacted before anything is written to disk or printed, so a
-result file carrying camera credentials cannot be committed by accident.
+### What lands in a result file
+
+Result files are designed to be committed to a public repository, so what goes
+into them is a deliberate list rather than whatever was easy to collect.
+
+Recorded: CPU model, core counts, RAM, OS and architecture, Python and PyTorch
+versions, GPU name and memory, the profile label, and every measurement.
+
+Not recorded: the machine's hostname. Hostnames routinely carry a person's name
+or an employer's, and they say nothing about how fast a model ran. The `profile`
+field identifies a machine instead, and you choose it with `--profile`.
+
+Stream URLs are redacted wherever they appear, in files and in terminal output,
+so a result carrying camera credentials cannot be committed by accident.
+
+If you have older results collected before this was tightened:
+
+```bash
+python scripts/scrub_results.py
+```
 
 ## What this does not do
 

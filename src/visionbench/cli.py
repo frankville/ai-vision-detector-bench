@@ -77,7 +77,7 @@ def doctor() -> None:
     table.add_column("k", style="bold cyan")
     table.add_column("v", overflow="fold")
     table.add_row("profile", default_profile())
-    table.add_row("host", f"{info['hostname']} ({info['os']}, {info['arch']})")
+    table.add_row("os", f"{info['os']} ({info['arch']})")
     table.add_row("cpu", f"{info['cpu_model']}")
     table.add_row(
         "cores", f"{info['cpu_cores_physical']} physical / {info['cpu_cores_logical']} logical"
