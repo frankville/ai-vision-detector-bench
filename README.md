@@ -132,6 +132,9 @@ visionbench models
 # one model against a clip
 visionbench run -s clips/corridor.mp4 -m dfine-nano -d 30
 
+# CUDA automatic mixed precision
+visionbench run -s clips/corridor.mp4 --device cuda --backend pytorch --precision amp-fp16
+
 # several models against a live camera, people only
 visionbench sweep -s "rtsp://user:pass@host:554/stream" \
   -m dfine-nano -m rtdetrv2-r18 -m detr-r50 -c person -d 60
@@ -167,6 +170,10 @@ Not recorded: the machine's hostname. Hostnames routinely carry a person's name
 or an employer's, and they say nothing about how fast a model ran. The `profile`
 field identifies a machine instead, and you choose it with `--profile`.
 
+Schema v2 stores requested settings in `config` and effective device, backend,
+and precision in `model`. Reports retain v1 results but mark their precision as
+unverified. PyTorch is currently the only inference backend.
+
 Stream URLs are redacted wherever they appear, in files and in terminal output,
 so a result carrying camera credentials cannot be committed by accident.
 
@@ -175,6 +182,21 @@ If you have older results collected before this was tightened:
 ```bash
 python scripts/scrub_results.py
 ```
+
+### Precision
+
+`--precision fp32` uses FP32 weights and inputs. `fp16` uses FP16 weights and
+floating pixel inputs on CUDA or MPS. `amp-fp16` keeps FP32 weights and inputs
+and uses CUDA autocast around inference. Unsupported combinations fail.
+
+Explicit FP16 casts floating pixel inputs on CPU before device transfer; masks
+and integer metadata keep their dtypes. Casting and transfer remain part of
+preprocessing timing. This differs from v1's cast after transfer, so compare
+preprocessing results with that change in mind. Warmup and FPS definitions are
+unchanged. E2E starts after decode; energy estimates cover the GPU only.
+
+NVML currently samples physical GPU 0. Resource and energy figures may not match
+the compute device with indexed CUDA selection or `CUDA_VISIBLE_DEVICES` remapping.
 
 ## What this does not do
 
@@ -208,3 +230,15 @@ Being explicit, because a benchmark that overstates itself is worse than none.
 
 Apache-2.0. See [LICENSE](LICENSE). Model weights carry their own licences,
 listed above and reported by `visionbench models`.
+
+## Development
+
+The optional [agent workflow](docs/development/agent-workflow.md) defines project
+roles and skills. The [benchmark roadmap](docs/development/roadmap.md) tracks
+precision, reproducible GPU suites, and multicamera capacity work.
+
+```bash
+uv pip install -e '.[dev]'
+python -m pytest
+ruff check src tests
+```

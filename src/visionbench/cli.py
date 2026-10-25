@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -17,6 +18,15 @@ app = typer.Typer(
     help="Benchmark and compare real-time object detection models on live video.",
 )
 console = Console()
+
+
+def _validated_config(**values: Any) -> RunConfig:
+    try:
+        config = RunConfig(**values)
+        config.validate(resolve=True)
+    except (ValueError, RuntimeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    return config
 
 
 def _split(values: list[str] | None) -> list[str]:
@@ -111,16 +121,17 @@ def run_cmd(
     ),
     mode: str = typer.Option("realtime", "--mode", help="realtime | sequential"),
     imgsz: int | None = typer.Option(None, "--imgsz", help="Override model input size."),
-    precision: str = typer.Option("fp32", "--precision", help="fp32 | fp16"),
+    precision: str = typer.Option("fp32", "--precision", help="fp32 | fp16 | amp-fp16"),
     profile: str | None = typer.Option(None, "--profile", help="Label for this machine."),
     pace_fps: float | None = typer.Option(
         None, "--pace-fps", help="Replay a file at this rate to imitate a camera."
     ),
     save: bool = typer.Option(True, "--save/--no-save"),
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out", help="Results directory."),
+    backend: str = typer.Option("pytorch", "--backend", help="Inference runtime: pytorch."),
 ) -> None:
     """Benchmark one model against one source."""
-    config = RunConfig(
+    config = _validated_config(
         source=source,
         model=model,
         device=device,
@@ -133,6 +144,7 @@ def run_cmd(
         precision=precision,
         profile=profile,
         pace_fps=pace_fps,
+        backend=backend,
     )
     console.print(f"[dim]loading {model}...[/dim]")
     result = run(config)
@@ -158,10 +170,11 @@ def sweep_cmd(
     classes: list[str] | None = typer.Option(None, "-c", "--class"),
     mode: str = typer.Option("realtime", "--mode"),
     imgsz: int | None = typer.Option(None, "--imgsz"),
-    precision: str = typer.Option("fp32", "--precision"),
+    precision: str = typer.Option("fp32", "--precision", help="fp32 | fp16 | amp-fp16"),
     profile: str | None = typer.Option(None, "--profile"),
     pace_fps: float | None = typer.Option(None, "--pace-fps"),
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out"),
+    backend: str = typer.Option("pytorch", "--backend", help="Inference runtime: pytorch."),
 ) -> None:
     """Run several models against the same source, one after another."""
     keys = _split(models)
@@ -171,7 +184,7 @@ def sweep_cmd(
         keys = DEFAULT_SWEEP
     console.print(f"[bold]sweeping[/bold] {', '.join(keys)}")
 
-    config = RunConfig(
+    config = _validated_config(
         source=source,
         model=keys[0],
         device=device,
@@ -183,6 +196,7 @@ def sweep_cmd(
         precision=precision,
         profile=profile,
         pace_fps=pace_fps,
+        backend=backend,
     )
 
     saved: list[dict] = []

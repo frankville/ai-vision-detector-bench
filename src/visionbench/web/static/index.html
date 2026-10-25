@@ -177,7 +177,8 @@ async function loadResults() {
   const cols = [
     ["Model", (r) => r.model], ["Licence", (r) => r.license], ["Host", (r) => r.profile],
     ["Device", (r) => `${r.device}/${r.precision}`],
-    ["FPS", (r) => fmt(r.processed_fps), 1], ["Streams", (r) => fmt(r.capacity_streams, 2), 1],
+    ["Backend", (r) => r.backend],
+    ["FPS", (r) => fmt(r.processed_fps), 1], ["Est. streams", (r) => fmt(r.capacity_streams, 2), 1],
     ["Infer p50", (r) => fmt(r.infer_p50, 1, " ms"), 1], ["Infer p95", (r) => fmt(r.infer_p95, 1, " ms"), 1],
     ["E2E p95", (r) => fmt(r.e2e_p95, 1, " ms"), 1], ["Drop", (r) => fmt(r.drop_pct, 1, " %"), 1],
     ["GPU mem", (r) => fmt(r.gpu_mem_mb, 0, " MB"), 1], ["Det/frame", (r) => fmt(r.detections_per_frame, 2), 1],

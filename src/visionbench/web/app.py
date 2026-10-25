@@ -44,6 +44,7 @@ class StartRequest(BaseModel):
     precision: str = "fp32"
     profile: str | None = None
     pace_fps: float | None = None
+    backend: str = "pytorch"
 
 
 @app.get("/")
@@ -103,19 +104,24 @@ async def api_results(limit: int = 50) -> dict[str, Any]:
 
 @app.post("/api/sessions")
 async def api_start(request: StartRequest) -> dict[str, Any]:
-    config = RunConfig(
-        source=request.source,
-        model=request.model,
-        device=request.device,
-        duration_s=request.duration_s,
-        confidence=request.confidence,
-        classes=request.classes or None,
-        mode=request.mode,
-        imgsz=request.imgsz,
-        precision=request.precision,
-        profile=request.profile,
-        pace_fps=request.pace_fps,
-    )
+    try:
+        config = RunConfig(
+            source=request.source,
+            model=request.model,
+            device=request.device,
+            duration_s=request.duration_s,
+            confidence=request.confidence,
+            classes=request.classes or None,
+            mode=request.mode,
+            imgsz=request.imgsz,
+            precision=request.precision,
+            profile=request.profile,
+            pace_fps=request.pace_fps,
+            backend=request.backend,
+        )
+        config.validate(resolve=True)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     session = store.create(config)
     return session.status()
 

@@ -1,0 +1,10 @@
+name = "methodology-reviewer"
+description = "Review benchmark measurement and reproducibility semantics."
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+developer_instructions = """
+Use the benchmark-methodology and result-schema skills when relevant. Do not edit files.
+Check timing boundaries, warmup, precision, drop accounting, aggregation, energy scope, and comparison compatibility.
+Return concrete findings with evidence, severity, and the reviewed revision or diff.
+Do not infer hardware correctness from mocked tests or call output summaries accuracy.
+"""

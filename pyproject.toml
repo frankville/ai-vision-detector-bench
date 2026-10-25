@@ -34,7 +34,7 @@ cuda = ["nvidia-ml-py>=12.0"]
 track = ["supervision>=0.25"]
 # AGPL-3.0. Reference baseline only, never a default. See docs/licensing.md.
 agpl-baseline = ["ultralytics>=8.3"]
-dev = ["ruff>=0.6", "pytest>=8.0"]
+dev = ["ruff>=0.6", "pytest>=8.0", "httpx>=0.27"]
 
 [project.scripts]
 visionbench = "visionbench.cli:app"

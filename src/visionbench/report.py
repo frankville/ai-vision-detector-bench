@@ -99,6 +99,7 @@ class Row:
     gpu_mem_mb: float | None
     energy_j: float | None
     detections_per_frame: float | None
+    backend: str = "unknown"
 
     @property
     def verdict(self) -> str:
@@ -109,12 +110,17 @@ def to_row(data: dict) -> Row:
     model_key = _get(data, "config", "model", default="?")
     spec = REGISTRY.get(model_key)
     drop = _get(data, "throughput", "drop_ratio")
+    precision = _get(data, "model", "precision", default="unknown")
+    backend = _get(data, "model", "backend", default="unknown")
+    if data.get("schema_version", 1) == 1:
+        precision = f"{precision} (unverified)" if precision != "unknown" else precision
+        backend = "unknown"
     return Row(
         model=model_key,
         license=spec.license if spec else _get(data, "model", "license", default="?"),
         profile=data.get("profile", "?"),
         device=_get(data, "model", "device", default="?"),
-        precision=_get(data, "model", "precision", default="fp32"),
+        precision=precision,
         mode=_get(data, "source", "mode", default="?"),
         processed_fps=_get(data, "throughput", "processed_fps"),
         realtime_factor=_get(data, "throughput", "realtime_factor"),
@@ -127,6 +133,7 @@ def to_row(data: dict) -> Row:
         gpu_mem_mb=_get(data, "resources", "counters", "gpu_mem_used_mb", "mean"),
         energy_j=_get(data, "resources", "energy_per_frame_j"),
         detections_per_frame=_get(data, "detections", "per_frame", "mean"),
+        backend=backend,
     )
 
 
@@ -134,11 +141,13 @@ COLUMNS = [
     ("Model", lambda r: r.model),
     ("Licence", lambda r: r.license),
     ("Host", lambda r: r.profile),
-    ("Device", lambda r: f"{r.device}/{r.precision}"),
+    ("Device", lambda r: r.device),
+    ("Backend", lambda r: r.backend),
+    ("Precision", lambda r: r.precision),
     ("Mode", lambda r: r.mode),
     ("FPS", lambda r: _fmt(r.processed_fps)),
     ("Real time", lambda r: r.verdict),
-    ("Streams", lambda r: _fmt(r.capacity_streams, 2)),
+    ("Est. streams", lambda r: _fmt(r.capacity_streams, 2)),
     ("Infer p50", lambda r: _fmt(r.infer_p50, 1, " ms")),
     ("Infer p95", lambda r: _fmt(r.infer_p95, 1, " ms")),
     ("E2E p95", lambda r: _fmt(r.e2e_p95, 1, " ms")),
@@ -148,10 +157,8 @@ COLUMNS = [
     ("Det/frame", lambda r: _fmt(r.detections_per_frame, 2)),
 ]
 
-#: Terminal default. Fourteen columns do not fit an 80-column terminal, and a
-#: table that wraps every cell is harder to read than one that omits what is
-#: usually constant across a sweep.
-COMPACT = {"Model", "Mode", "FPS", "Real time", "Infer p50", "Infer p95", "Drop", "Det/frame"}
+#: Columns shown in compact terminal reports.
+COMPACT = {"Model", "Backend", "Precision", "Mode", "FPS", "Infer p50", "Infer p95", "Drop"}
 
 
 def _sorted_rows(results: list[dict]) -> list[Row]:
@@ -190,7 +197,7 @@ def context_line(results: list[dict]) -> str:
     rows = _sorted_rows(results)
     if not rows:
         return ""
-    hosts = sorted({f"{r.profile} ({r.device}/{r.precision})" for r in rows})
+    hosts = sorted({f"{r.profile} ({r.device}/{r.backend}/{r.precision})" for r in rows})
     restricted = sorted({r.model for r in rows if not r.license.startswith("Apache")})
     parts = [f"host: {', '.join(hosts)}"]
     if restricted:
@@ -205,7 +212,7 @@ def summarise(result: RunResult) -> str:
     e2e = result.latency.get("end_to_end_ms", {})
     parts = [
         f"{result.config['model']} on {result.profile} ({result.model.get('device')}, "
-        f"{result.model.get('precision', 'fp32')})",
+        f"{result.model.get('backend', 'unknown')}, {result.model.get('precision', 'unknown')})",
         f"processed {tp['frames_processed']} frames in {result.elapsed_s:.1f}s "
         f"at {tp['processed_fps']:.1f} fps",
     ]
