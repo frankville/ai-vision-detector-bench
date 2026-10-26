@@ -17,6 +17,7 @@ from typing import Any
 
 import numpy as np
 
+from visionbench.execution import validate_execution
 from visionbench.types import Detections, InferTimings
 
 
@@ -30,7 +31,26 @@ def resolve_device(requested: str = "auto") -> str:
     import torch
 
     if requested and requested != "auto":
-        return requested
+        try:
+            device = torch.device(requested)
+        except (RuntimeError, ValueError, TypeError) as exc:
+            raise ValueError(f"invalid device {requested!r}: {exc}") from exc
+        if device.type == "cuda":
+            if not torch.cuda.is_available():
+                raise ValueError(f"CUDA device {requested!r} requested but CUDA is unavailable")
+            if device.index is not None and device.index >= torch.cuda.device_count():
+                raise ValueError(f"CUDA device index {device.index} is unavailable")
+        elif device.type == "mps":
+            if (
+                getattr(torch.backends, "mps", None) is None
+                or not torch.backends.mps.is_available()
+            ):
+                raise ValueError(f"MPS device {requested!r} requested but MPS is unavailable")
+            if device.index not in (None, 0):
+                raise ValueError(f"MPS device index {device.index} is unavailable")
+        elif device.type != "cpu":
+            raise ValueError(f"unsupported device {requested!r}; choose auto, cpu, cuda, or mps")
+        return str(device)
     if torch.cuda.is_available():
         return "cuda"
     if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
@@ -47,7 +67,7 @@ def sync_device(device: str) -> None:
     import torch
 
     if device.startswith("cuda"):
-        torch.cuda.synchronize()
+        torch.cuda.synchronize(device)
     elif device.startswith("mps"):
         torch.mps.synchronize()
 
@@ -82,9 +102,15 @@ class Detector(ABC):
         device: str = "auto",
         confidence: float = 0.3,
         imgsz: int | None = None,
+        backend: str = "pytorch",
+        precision: str = "fp32",
         **kwargs: Any,
     ) -> None:
+        validate_execution(backend, precision, device)
         self.device = resolve_device(device)
+        validate_execution(backend, precision, self.device)
+        self.backend = backend
+        self.precision = precision
         self.confidence = confidence
         self.imgsz = imgsz
         self.extra = kwargs
@@ -127,6 +153,8 @@ class Detector(ABC):
             "license": self.license,
             "weights": self.weights,
             "device": self.device,
+            "backend": self.backend,
+            "precision": self.precision,
             "confidence": self.confidence,
             "imgsz": self.imgsz,
             "parameters_m": self.parameters_m(),

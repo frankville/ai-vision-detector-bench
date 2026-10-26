@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from visionbench.execution import validate_execution
 from visionbench.hostinfo import default_profile, host_info
 from visionbench.metrics.system import SystemSampler, energy_per_frame_j, now_iso
 from visionbench.metrics.timers import RateMeter, Series, StageTimers
@@ -22,7 +23,7 @@ from visionbench.models import build as build_model
 from visionbench.sources import describe, open_source
 from visionbench.types import Detections, Frame, InferTimings
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 #: Callback signature for live consumers: (frame, detections, timings) -> None
 FrameHook = Callable[[Frame, Detections, InferTimings], None]
@@ -45,6 +46,18 @@ class RunConfig:
     pace_fps: float | None = None
     loop: bool = True
     note: str = ""
+    backend: str = "pytorch"
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self, *, resolve: bool = False) -> None:
+        device = self.device
+        if resolve:
+            from visionbench.models.base import resolve_device
+
+            device = resolve_device(device)
+        validate_execution(self.backend, self.precision, device)
 
     def redacted(self) -> dict[str, Any]:
         """Config safe to write to disk: the source URL loses its credentials."""
@@ -74,7 +87,9 @@ class RunResult:
 
     @property
     def key(self) -> str:
-        return f"{self.config['model']}@{self.profile}"
+        backend = self.model.get("backend", "unknown")
+        precision = self.model.get("precision", "unknown")
+        return f"{self.config['model']}@{self.profile}/{backend}/{precision}"
 
 
 def _detection_stats(per_frame: Series, confidence: Series, class_totals: dict[str, int]) -> dict:
@@ -100,6 +115,7 @@ def run(
     produce the final result, so a dashboard watching a run cannot drift away
     from the numbers that get written to disk.
     """
+    cfg.validate(resolve=True)
     warnings: list[str] = []
     profile = cfg.profile or default_profile()
 
@@ -109,6 +125,7 @@ def run(
         confidence=cfg.confidence,
         imgsz=cfg.imgsz,
         precision=cfg.precision,
+        backend=cfg.backend,
     )
     detector.load()
 

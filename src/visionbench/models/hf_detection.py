@@ -7,11 +7,13 @@ that follows the same contract costs one registry entry and no code.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 import cv2
 import numpy as np
 
+from visionbench.execution import validate_execution
 from visionbench.models.base import Detector, stage
 from visionbench.types import Detections, InferTimings
 
@@ -24,11 +26,18 @@ class HFDetectionModel(Detector):
         confidence: float = 0.3,
         imgsz: int | None = None,
         precision: str = "fp32",
+        backend: str = "pytorch",
         **kwargs: Any,
     ) -> None:
-        super().__init__(device=device, confidence=confidence, imgsz=imgsz, **kwargs)
+        super().__init__(
+            device=device,
+            confidence=confidence,
+            imgsz=imgsz,
+            backend=backend,
+            precision=precision,
+            **kwargs,
+        )
         self.weights = weights
-        self.precision = precision
         self.model = None
         self.processor = None
         self.names: dict[int, str] = {}
@@ -36,7 +45,7 @@ class HFDetectionModel(Detector):
 
     @property
     def _half(self) -> bool:
-        return self.precision == "fp16" and not self.device.startswith("cpu")
+        return self.precision == "fp16"
 
     def _apply_imgsz(self) -> None:
         """Override the processor's resize target, honouring its own schema.
@@ -61,6 +70,7 @@ class HFDetectionModel(Detector):
             self.processor.size = {"height": target, "width": target}
 
     def load(self) -> None:
+        validate_execution(self.backend, self.precision, self.device)
         from transformers import AutoImageProcessor, AutoModelForObjectDetection
 
         self.processor = AutoImageProcessor.from_pretrained(self.weights)
@@ -68,9 +78,11 @@ class HFDetectionModel(Detector):
 
         model = AutoModelForObjectDetection.from_pretrained(self.weights)
         model.eval()
-        model.to(self.device)
         if self._half:
             model.half()
+        else:
+            model.float()
+        model.to(self.device)
         self.model = model
 
         id2label = getattr(model.config, "id2label", {}) or {}
@@ -90,15 +102,23 @@ class HFDetectionModel(Detector):
             # copy per frame for nothing.
             rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
             encoded = self.processor(images=rgb, return_tensors="pt")
+            if self._half and "pixel_values" in encoded:
+                pixels = encoded["pixel_values"]
+                if pixels.is_floating_point():
+                    encoded["pixel_values"] = pixels.half()
             inputs = {k: v.to(self.device) for k, v in encoded.items()}
-            if self._half and "pixel_values" in inputs:
-                inputs["pixel_values"] = inputs["pixel_values"].half()
             pixel_values = inputs.get("pixel_values")
             if pixel_values is not None:
                 self.input_shape = tuple(pixel_values.shape)
 
         with stage(self.device) as t_infer, torch.inference_mode():
-            outputs = self.model(**inputs)
+            autocast = (
+                torch.autocast(device_type="cuda", dtype=torch.float16)
+                if self.precision == "amp-fp16"
+                else nullcontext()
+            )
+            with autocast:
+                outputs = self.model(**inputs)
 
         with stage(None) as t_post:
             processed = self.processor.post_process_object_detection(
