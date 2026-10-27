@@ -33,7 +33,7 @@ def test_cli_forwards_default_execution_settings(monkeypatch, tmp_path, result, 
         captured.append(config)
         return result
 
-    def fake_sweep(config, keys, on_result, on_error):
+    def fake_sweep(config, keys, on_result, on_error, repeat=1, on_attempt=None):
         captured.append(config)
         on_result(result)
         return [result]

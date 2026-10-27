@@ -72,11 +72,15 @@ class FrameSource(ABC):
 
     def _build_capture(self) -> cv2.VideoCapture:
         cap = cv2.VideoCapture(self.url)
-        if not cap.isOpened():
-            raise RuntimeError(f"could not open source: {describe(self.url)}")
-        # Ask FFmpeg to hold one frame, not a queue of them. Honoured by some
-        # backends only, which is why the realtime source drops explicitly too.
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        try:
+            if not cap.isOpened():
+                raise RuntimeError(f"could not open source: {describe(self.url)}")
+            # Ask FFmpeg to hold one frame, not a queue of them. Honoured by some
+            # backends only, which is why the realtime source drops explicitly too.
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        except BaseException:
+            cap.release()
+            raise
         return cap
 
     def open(self) -> None:
@@ -314,5 +318,9 @@ def open_source(
         if mode == "realtime"
         else SequentialSource(url, loop=loop)
     )
-    source.open()
+    try:
+        source.open()
+    except BaseException:
+        source.close()
+        raise
     return source
