@@ -3,6 +3,7 @@
 - Keep public comments and documentation concise.
 - Name branches with `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`, or `test/` followed by a short description. Do not use agent names as prefixes.
 - Do not commit directly to `main` or push commits directly to `origin/main`, except for version-only bumps. Use feature branches and pull requests for other changes.
+- After PR #2 merges, limit each PR to 400 changed lines total (additions plus deletions). Split larger features into independently reviewable PRs and account for the limit when planning work. PR #2 is a one-time exception.
 - Preserve CLI compatibility and measurement definitions. Document intentional changes.
 - Keep the development agent workflow separate from the benchmark engine and suites.
 - For substantial changes, the main agent coordinates bounded implementation and independent review. Delegate methodology review for timing, precision, aggregation, and capacity changes; delegate code review before completion. Handle small changes directly.
