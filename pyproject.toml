@@ -49,6 +49,15 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/visionbench"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
+markers = [
+    "unit: isolated logic and control-flow checks",
+    "integration: offline component, filesystem, decoder, or adapter integration",
+    "e2e: opt-in installed CLI and real model inference on CPU",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

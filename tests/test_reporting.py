@@ -5,6 +5,7 @@ import pytest
 from visionbench import report
 
 
+@pytest.mark.integration
 def test_v2_save_load_and_report_preserve_execution_settings(tmp_path, result):
     path = report.save(result, tmp_path)
     saved = report.load_all(tmp_path)
@@ -27,6 +28,7 @@ def test_precision_and_backend_are_in_result_key(result):
     assert "amp-fp16" in result.key
 
 
+@pytest.mark.integration
 def test_existing_v1_results_remain_readable():
     saved = [
         item for item in report.load_all(Path(__file__).resolve().parents[1] / "benchmarks")

@@ -8,6 +8,8 @@ from typer.testing import CliRunner
 from visionbench import cli
 from visionbench.web import app as web
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize("command", ["run", "sweep"])
 @pytest.mark.parametrize("flags", [

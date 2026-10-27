@@ -5,6 +5,8 @@ import pytest
 
 from visionbench import storage
 
+pytestmark = pytest.mark.integration
+
 
 def test_creates_nested_directory_and_preserves_collisions(tmp_path):
     directory = tmp_path / "nested" / "results"

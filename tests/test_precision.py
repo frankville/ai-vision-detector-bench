@@ -294,3 +294,19 @@ def test_resolve_and_synchronize_indexed_cuda(fake_hf):
 def test_resolve_invalid_device(fake_hf, device):
     with pytest.raises(ValueError):
         resolve_device(device)
+
+
+@pytest.mark.parametrize("size,expected", [
+    ({"height": 640, "width": 640}, {"height": 320, "width": 320}),
+    ({"shortest_edge": 640, "longest_edge": 1333}, {"shortest_edge": 320, "longest_edge": 1333}),
+])
+@pytest.mark.parametrize("structured", [False, True])
+def test_resize_override_supports_dictionary_protocol(fake_hf, size, expected, structured):
+    class StructuredSize:
+        def __iter__(self):
+            yield from size.items()
+
+    fake_hf.processor.size = StructuredSize() if structured else size
+    detector = HFDetectionModel("test/checkpoint", device="cpu", imgsz=320)
+    detector.load()
+    assert detector.processor.size == expected

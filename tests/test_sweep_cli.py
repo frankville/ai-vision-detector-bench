@@ -5,6 +5,8 @@ from typer.testing import CliRunner
 
 from visionbench import cli, report
 
+pytestmark = pytest.mark.integration
+
 
 def fake_runner(result, *, fail=None, interrupt=None, status=None):
     calls = []

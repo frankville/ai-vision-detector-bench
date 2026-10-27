@@ -195,6 +195,7 @@ def fake_runtime(monkeypatch):
     return events, fail
 
 
+@pytest.mark.integration
 def test_warmup_interrupt_exports_completed_subset(fake_runtime, monkeypatch, tmp_path):
     from visionbench import report
     from visionbench.aggregate import aggregate_runs

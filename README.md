@@ -267,8 +267,11 @@ The optional [agent workflow](docs/development/agent-workflow.md) defines projec
 roles and skills. The [benchmark roadmap](docs/development/roadmap.md) tracks
 precision, reproducible GPU suites, and multicamera capacity work.
 
+See [testing](docs/development/testing.md) for test layers and CI. Fast CPU tests
+run on each PR update; the installed-CLI E2E workflow runs on demand.
+
 ```bash
 uv pip install -e '.[dev]'
-python -m pytest
+python -m pytest  # Unit and offline integration tests; E2E is opt-in
 ruff check src tests
 ```

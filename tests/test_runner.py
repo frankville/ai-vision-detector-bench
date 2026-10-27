@@ -1,10 +1,13 @@
 import time
 
 import numpy as np
+import pytest
 
 from visionbench import runner
 from visionbench.models.base import Detector
 from visionbench.types import Detections, Frame, InferTimings, SourceStats
+
+pytestmark = pytest.mark.integration
 
 
 def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch):

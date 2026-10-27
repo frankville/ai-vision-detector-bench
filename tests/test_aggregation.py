@@ -220,6 +220,7 @@ def test_rejects_empty_input():
         aggregate_runs([], attempts=[])
 
 
+@pytest.mark.integration
 def test_round_trip_and_mixed_directory_filtering(group, tmp_path, monkeypatch):
     from visionbench.runner import RunResult
 
@@ -283,6 +284,7 @@ def test_rejects_external_result_reference(group, tmp_path):
         aggregate_runs(group, attempts=outcomes(group), root=tmp_path)
 
 
+@pytest.mark.integration
 def test_raw_save_same_second_preserves_results(result, tmp_path):
     first = report.save(result, tmp_path)
     second = report.save(result, tmp_path)
