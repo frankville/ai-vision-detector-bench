@@ -135,6 +135,10 @@ visionbench run -s clips/corridor.mp4 -m dfine-nano -d 30
 # CUDA automatic mixed precision
 visionbench run -s clips/corridor.mp4 --device cuda --backend pytorch --precision amp-fp16
 
+# repeated measurements and aggregate statistics
+visionbench sweep -s clips/corridor.mp4 --mode sequential --repeat 5
+visionbench report --kind aggregate --full
+
 # several models against a live camera, people only
 visionbench sweep -s "rtsp://user:pass@host:554/stream" \
   -m dfine-nano -m rtdetrv2-r18 -m detr-r50 -c person -d 60
@@ -170,7 +174,7 @@ Not recorded: the machine's hostname. Hostnames routinely carry a person's name
 or an employer's, and they say nothing about how fast a model ran. The `profile`
 field identifies a machine instead, and you choose it with `--profile`.
 
-Schema v2 stores requested settings in `config` and effective device, backend,
+Schemas v2 and v3 store requested settings in `config` and effective device, backend,
 and precision in `model`. Reports retain v1 results but mark their precision as
 unverified. PyTorch is currently the only inference backend.
 
@@ -197,6 +201,32 @@ unchanged. E2E starts after decode; energy estimates cover the GPU only.
 
 NVML currently samples physical GPU 0. Resource and energy figures may not match
 the compute device with indexed CUDA selection or `CUDA_VISIBLE_DEVICES` remapping.
+
+### Repeated runs
+
+`sweep --repeat N` loads, warms up, measures, and unloads each attempt separately.
+Models run serially, interleaved by repetition. The default remains one run.
+
+Every raw result is saved before aggregation. Schema v3 adds run/group IDs,
+repetition numbers, and completed, empty, or interrupted status. Writes are atomic
+and never replace an existing result.
+
+Repeated sweeps save separate summaries under `benchmarks/<profile>/aggregates/`.
+Use `report --kind aggregate` or `report --kind aggregate --markdown` to read them;
+ordinary reports and the dashboard continue to show raw runs.
+
+Summaries report eligible/requested runs, FPS median/mean/range/sample standard
+deviation, and medians of per-run latency percentiles. GPU counter summaries use
+medians of per-run means; missing telemetry remains null with availability counts.
+Sample standard deviation is null for fewer than two eligible runs.
+
+Interrupted and empty runs remain saved but are excluded from statistics. A run
+needs at least two completions and a positive completion interval. Partial groups
+list failed, interrupted, empty, and unattempted slots. Repeated sweeps with failed
+or empty attempts exit with code 1; interruption stops scheduling and exits 130.
+
+Aggregates cover explicit groups from one sweep. Comparing arbitrary saved runs
+or different hosts requires the workload/environment checks planned in the roadmap.
 
 ## What this does not do
 
@@ -237,8 +267,11 @@ The optional [agent workflow](docs/development/agent-workflow.md) defines projec
 roles and skills. The [benchmark roadmap](docs/development/roadmap.md) tracks
 precision, reproducible GPU suites, and multicamera capacity work.
 
+See [testing](docs/development/testing.md) for test layers and CI. Fast CPU tests
+run on each PR update; the installed-CLI E2E workflow runs on demand.
+
 ```bash
 uv pip install -e '.[dev]'
-python -m pytest
+python -m pytest  # Unit and offline integration tests; E2E is opt-in
 ruff check src tests
 ```

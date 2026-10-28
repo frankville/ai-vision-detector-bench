@@ -1,10 +1,13 @@
 import time
 
 import numpy as np
+import pytest
 
 from visionbench import runner
 from visionbench.models.base import Detector
 from visionbench.types import Detections, Frame, InferTimings, SourceStats
+
+pytestmark = pytest.mark.integration
 
 
 def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch):
@@ -71,7 +74,7 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
 
     assert built_settings["backend"] == "pytorch"
     assert built_settings["precision"] == "fp32"
-    assert result.schema_version == 2
+    assert result.schema_version == 3
     assert result.config["device"] == "cpu"
     assert result.config["backend"] == result.model["backend"] == "pytorch"
     assert result.config["precision"] == result.model["precision"] == "fp32"

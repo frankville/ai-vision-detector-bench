@@ -4,6 +4,8 @@ Objective: reproducible benchmarking and capacity planning for vision workloads 
 
 P1.1 is implemented with CPU/mocked regression coverage. GPU detection consistency and performance validation remain pending. See [the precision decision](../decisions/0002-precision-results.md).
 
+P1.2 adds independent repetitions, atomic raw persistence, explicit attempt outcomes, and separate aggregate reports. Its statistical and failure paths have CPU/mocked coverage; GPU validation remains pending. See [the repetition decision](../decisions/0003-repeated-measurements.md).
+
 ## Phase 1: measurement foundation
 
 - P1.1: validated FP32, explicit FP16, and CUDA AMP-FP16; integer-safe tensor transfer; explicit PyTorch backend and effective configuration metadata.

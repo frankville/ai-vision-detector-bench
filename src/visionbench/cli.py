@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from visionbench import report as report_mod
+from visionbench.aggregate import aggregate_runs
 from visionbench.models import DEFAULT_SWEEP, SPECS, permissive_keys
 from visionbench.runner import RunConfig, run, sweep
 
@@ -175,6 +176,7 @@ def sweep_cmd(
     pace_fps: float | None = typer.Option(None, "--pace-fps"),
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out"),
     backend: str = typer.Option("pytorch", "--backend", help="Inference runtime: pytorch."),
+    repeat: int = typer.Option(1, "--repeat", min=1, help="Independent measured runs per model."),
 ) -> None:
     """Run several models against the same source, one after another."""
     keys = _split(models)
@@ -182,6 +184,8 @@ def sweep_cmd(
         keys = permissive_keys()
     if not keys:
         keys = DEFAULT_SWEEP
+    if len(set(keys)) != len(keys):
+        raise typer.BadParameter("model names must be unique; use --repeat for repetitions", param_hint="--model")
     console.print(f"[bold]sweeping[/bold] {', '.join(keys)}")
 
     config = _validated_config(
@@ -201,6 +205,7 @@ def sweep_cmd(
 
     saved: list[dict] = []
     failed: list[tuple[str, str]] = []
+    attempts: list[dict] = []
 
     def _on_result(result) -> None:
         console.print(report_mod.summarise(result))
@@ -208,21 +213,55 @@ def sweep_cmd(
             console.print(f"[yellow]warning:[/yellow] {warning}")
         path = report_mod.save(result, out)
         console.print(f"[dim]saved {path}[/dim]\n")
-        saved.append(result.to_dict())
+        data = result.to_dict()
+        data["_path"] = str(path)
+        saved.append(data)
 
     def _on_error(key: str, exc: Exception) -> None:
         first_line = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
         console.print(f"[red]{key} failed:[/red] {first_line}\n")
         failed.append((key, first_line))
 
-    sweep(config, keys, on_result=_on_result, on_error=_on_error)
+    interrupted = False
+    try:
+        sweep(config, keys, on_result=_on_result, on_error=_on_error, repeat=repeat, on_attempt=attempts.append)
+    except KeyboardInterrupt:
+        interrupted = True
+    interrupted = interrupted or any(attempt["status"] == "interrupted" for attempt in attempts)
 
-    if saved:
+    aggregates = []
+    aggregate_failed = False
+    if repeat > 1:
+        for group_id in dict.fromkeys(data["group_id"] for data in saved):
+            members = [data for data in saved if data["group_id"] == group_id]
+            outcomes = [attempt for attempt in attempts if attempt["group_id"] == group_id]
+            try:
+                aggregate = aggregate_runs(members, attempts=outcomes, root=out)
+                path = report_mod.save_aggregate(aggregate, out)
+            except ValueError as exc:
+                aggregate_failed = True
+                console.print(f"[red]aggregate failed:[/red] {exc}")
+                continue
+            aggregates.append(aggregate)
+            console.print(f"[dim]saved aggregate {path}[/dim]")
+            counts = aggregate["counts"]
+            if counts["eligible"] < counts["requested"]:
+                console.print(
+                    f"[yellow]{aggregate['config']['model']}: {counts['eligible']}/{counts['requested']} eligible runs; "
+                    f"{counts['failed']} failed, {counts['interrupted']} interrupted, "
+                    f"{counts['empty']} empty, {counts['unattempted']} unattempted[/yellow]"
+                )
+
+    if aggregates:
+        console.print(report_mod.aggregate_rich_table(aggregates))
+    elif saved:
         console.print(report_mod.rich_table(saved))
         console.print(f"[dim]{report_mod.context_line(saved)}[/dim]")
     if failed:
-        console.print(f"\n[red]{len(failed)} model(s) failed:[/red] {', '.join(k for k, _ in failed)}")
-    if not saved:
+        console.print(f"\n[red]{len(failed)} attempt(s) failed:[/red] {', '.join(k for k, _ in failed)}")
+    if interrupted:
+        raise typer.Exit(code=130)
+    if not saved or aggregate_failed or (repeat > 1 and (failed or any(data["status"] != "completed" for data in saved))):
         raise typer.Exit(code=1)
 
 
@@ -232,20 +271,26 @@ def report_cmd(
     markdown: bool = typer.Option(False, "--markdown", help="Emit a README-ready table."),
     full: bool = typer.Option(False, "--full", help="Show every column, not the compact set."),
     limit: int | None = typer.Option(None, "--limit", help="Only the N most recent runs."),
+    kind: str = typer.Option("run", "--kind", help="run | aggregate"),
 ) -> None:
     """Render saved results as a comparison table."""
-    results = report_mod.load_all(directory)
+    if kind not in ("run", "aggregate"):
+        raise typer.BadParameter("choose 'run' or 'aggregate'", param_hint="--kind")
+    results = report_mod.load_all(directory, kind=kind)
     if limit:
         results = results[:limit]
     if not results:
         console.print(f"[yellow]no results under {directory}[/yellow]")
         raise typer.Exit(code=1)
     if markdown:
-        print(report_mod.markdown_table(results))
+        print(report_mod.aggregate_markdown_table(results) if kind == "aggregate" else report_mod.markdown_table(results))
     else:
-        console.print(report_mod.rich_table(results, full=full))
-        console.print(f"[dim]{report_mod.context_line(results)}[/dim]")
-        console.print(f"[dim]{len(results)} run(s) from {directory}[/dim]")
+        if kind == "aggregate":
+            console.print(report_mod.aggregate_rich_table(results, full=full))
+        else:
+            console.print(report_mod.rich_table(results, full=full))
+            console.print(f"[dim]{report_mod.context_line(results)}[/dim]")
+        console.print(f"[dim]{len(results)} {kind}(s) from {directory}[/dim]")
 
 
 @app.command("serve")

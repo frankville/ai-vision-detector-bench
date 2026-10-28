@@ -57,7 +57,9 @@ class HFDetectionModel(Detector):
         if not self.imgsz or self.processor is None:
             return
         size = getattr(self.processor, "size", None)
-        if not isinstance(size, dict):
+        try:
+            size = dict(size)
+        except (TypeError, ValueError):
             return
         target = int(self.imgsz)
         if "shortest_edge" in size:

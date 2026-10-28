@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from contextlib import ExitStack
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
+from uuid import uuid4
 
 import numpy as np
 
@@ -23,7 +26,7 @@ from visionbench.models import build as build_model
 from visionbench.sources import describe, open_source
 from visionbench.types import Detections, Frame, InferTimings
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 #: Callback signature for live consumers: (frame, detections, timings) -> None
 FrameHook = Callable[[Frame, Detections, InferTimings], None]
@@ -82,6 +85,13 @@ class RunResult:
     detections: dict
     warnings: list[str] = field(default_factory=list)
 
+    run_id: str = field(default_factory=lambda: uuid4().hex)
+    group_id: str | None = None
+    repetition: int = 1
+    repeat_count: int = 1
+    record_type: str = "run"
+    status: str = "completed"
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -119,121 +129,122 @@ def run(
     warnings: list[str] = []
     profile = cfg.profile or default_profile()
 
-    detector = build_model(
-        cfg.model,
-        device=cfg.device,
-        confidence=cfg.confidence,
-        imgsz=cfg.imgsz,
-        precision=cfg.precision,
-        backend=cfg.backend,
-    )
-    detector.load()
+    with ExitStack() as resources:
+        detector = build_model(
+            cfg.model,
+            device=cfg.device,
+            confidence=cfg.confidence,
+            imgsz=cfg.imgsz,
+            precision=cfg.precision,
+            backend=cfg.backend,
+        )
+        resources.callback(detector.unload)
+        detector.load()
 
-    source = open_source(cfg.source, mode=cfg.mode, pace_fps=cfg.pace_fps, loop=cfg.loop)
+        source = open_source(cfg.source, mode=cfg.mode, pace_fps=cfg.pace_fps, loop=cfg.loop)
 
-    timers = StageTimers()
-    processed = RateMeter()
-    per_frame_detections = Series("detections_per_frame")
-    mean_confidence = Series("mean_confidence")
-    class_totals: dict[str, int] = {}
-    sampler = SystemSampler(device=detector.device)
+        resources.callback(source.close)
 
-    wanted = set(cfg.classes) if cfg.classes else None
-    started_wall = now_iso()
-    # Captured before the finally block unloads the weights, since parameter
-    # counts are read off the live model.
-    model_info = detector.info()
-    count = 0
+        timers = StageTimers()
+        processed = RateMeter()
+        per_frame_detections = Series("detections_per_frame")
+        mean_confidence = Series("mean_confidence")
+        class_totals: dict[str, int] = {}
+        sampler = SystemSampler(device=detector.device)
+        resources.callback(sampler.stop)
 
-    try:
-        # Warm up before any clock starts. The first inference on a fresh model
-        # pays for kernel compilation and allocator growth; on MPS that can be
-        # ten times the steady-state cost.
-        first = source.read(timeout=15.0)
-        if first is None:
-            raise RuntimeError(f"no frames from source: {describe(cfg.source)}")
-        detector.warmup(first.image, rounds=cfg.warmup_frames)
+        wanted = set(cfg.classes) if cfg.classes else None
+        started_wall = now_iso()
+        # Captured before the finally block unloads the weights, since parameter
+        # counts are read off the live model.
+        model_info = detector.info()
+        count = 0
+        interrupted = False
 
-        model_info = detector.info()  # refresh: input shape is known after warmup
-        # Everything decoded while the model was warming up is water under the
-        # bridge. Measurement starts here.
-        source.reset_counters()
+        try:
+            # Warm up before any clock starts. The first inference on a fresh model
+            # pays for kernel compilation and allocator growth; on MPS that can be
+            # ten times the steady-state cost.
+            first = source.read(timeout=15.0)
+            if first is None:
+                raise RuntimeError(f"no frames from source: {describe(cfg.source)}")
+            detector.warmup(first.image, rounds=cfg.warmup_frames)
 
-        sampler.start()
-        loop_started = time.perf_counter()
-        last_progress = loop_started
-        deadline = loop_started + cfg.duration_s if cfg.duration_s else float("inf")
+            model_info = detector.info()  # refresh: input shape is known after warmup
+            # Everything decoded while the model was warming up is water under the
+            # bridge. Measurement starts here.
+            source.reset_counters()
 
-        while True:
-            if should_stop is not None and should_stop():
-                break
-            if time.perf_counter() >= deadline:
-                break
-            if cfg.max_frames is not None and count >= cfg.max_frames:
-                break
+            sampler.start()
+            loop_started = time.perf_counter()
+            last_progress = loop_started
+            deadline = loop_started + cfg.duration_s if cfg.duration_s else float("inf")
 
-            frame = source.read(timeout=10.0)
-            if frame is None:
-                break
+            while True:
+                if should_stop is not None and should_stop():
+                    interrupted = True
+                    break
+                if time.perf_counter() >= deadline:
+                    break
+                if cfg.max_frames is not None and count >= cfg.max_frames:
+                    break
 
-            detections, timings = detector.infer(frame.image)
-            if wanted:
-                detections = detections.only(wanted)
+                frame = source.read(timeout=10.0)
+                if frame is None:
+                    break
 
-            ready_at = time.perf_counter()
-            timers.add("preprocess_ms", timings.pre_ms)
-            timers.add("inference_ms", timings.infer_ms)
-            timers.add("postprocess_ms", timings.post_ms)
-            timers.add("model_total_ms", timings.total_ms)
-            # Capture to detections-ready. Includes the time the frame spent
-            # waiting for the consumer, which is what an alert pipeline feels.
-            timers.add("end_to_end_ms", (ready_at - frame.captured_at) * 1000.0)
+                detections, timings = detector.infer(frame.image)
+                if wanted:
+                    detections = detections.only(wanted)
 
-            processed.mark()
-            count += 1
+                ready_at = time.perf_counter()
+                timers.add("preprocess_ms", timings.pre_ms)
+                timers.add("inference_ms", timings.infer_ms)
+                timers.add("postprocess_ms", timings.post_ms)
+                timers.add("model_total_ms", timings.total_ms)
+                # Capture to detections-ready. Includes the time the frame spent
+                # waiting for the consumer, which is what an alert pipeline feels.
+                timers.add("end_to_end_ms", (ready_at - frame.captured_at) * 1000.0)
 
-            per_frame_detections.add(len(detections))
-            if len(detections):
-                mean_confidence.add(float(np.mean(detections.confidence)))
-                for name, n in detections.class_counts().items():
-                    class_totals[name] = class_totals.get(name, 0) + n
+                processed.mark()
+                count += 1
 
-            if on_frame is not None:
-                on_frame(frame, detections, timings)
+                per_frame_detections.add(len(detections))
+                if len(detections):
+                    mean_confidence.add(float(np.mean(detections.confidence)))
+                    for name, n in detections.class_counts().items():
+                        class_totals[name] = class_totals.get(name, 0) + n
 
-            if on_progress is not None and ready_at - last_progress >= progress_every_s:
-                last_progress = ready_at
-                live = source.stats()
-                on_progress(
-                    {
-                        "elapsed_s": round(ready_at - loop_started, 2),
-                        "frames_processed": count,
-                        "frames_decoded": live.frames_decoded,
-                        "frames_dropped": live.frames_dropped,
-                        "drop_ratio": round(
-                            live.frames_dropped / live.frames_decoded, 4
-                        )
-                        if live.frames_decoded
-                        else 0.0,
-                        "decode_fps": live.decode_fps,
-                        "processed_fps": processed.instant_fps,
-                        "processed_fps_mean": processed.mean_fps,
-                        "stages_ms": timers.recent(),
-                        "resources": sampler.snapshot(),
-                        "detections_last": len(detections),
-                        "detections_mean": round(per_frame_detections.recent_mean, 2),
-                    }
-                )
+                if on_frame is not None:
+                    on_frame(frame, detections, timings)
 
-    except KeyboardInterrupt:
-        warnings.append("run interrupted by user; results cover the frames completed so far")
-    finally:
-        sampler.stop()
-        source.close()
-        # Free the weights before the next model in a sweep loads its own,
-        # otherwise two models briefly share VRAM and the second one's memory
-        # figures are inflated by the first.
-        detector.unload()
+                if on_progress is not None and ready_at - last_progress >= progress_every_s:
+                    last_progress = ready_at
+                    live = source.stats()
+                    on_progress(
+                        {
+                            "elapsed_s": round(ready_at - loop_started, 2),
+                            "frames_processed": count,
+                            "frames_decoded": live.frames_decoded,
+                            "frames_dropped": live.frames_dropped,
+                            "drop_ratio": round(
+                                live.frames_dropped / live.frames_decoded, 4
+                            )
+                            if live.frames_decoded
+                            else 0.0,
+                            "decode_fps": live.decode_fps,
+                            "processed_fps": processed.instant_fps,
+                            "processed_fps_mean": processed.mean_fps,
+                            "stages_ms": timers.recent(),
+                            "resources": sampler.snapshot(),
+                            "detections_last": len(detections),
+                            "detections_mean": round(per_frame_detections.recent_mean, 2),
+                        }
+                    )
+
+        except KeyboardInterrupt:
+            interrupted = True
+            warnings.append("run interrupted by user; results cover the frames completed so far")
 
     stats = source.stats()
     elapsed = processed.elapsed_s
@@ -298,6 +309,9 @@ def run(
         resources=resources,
         detections=_detection_stats(per_frame_detections, mean_confidence, class_totals),
         warnings=warnings,
+        status="interrupted" if interrupted else (
+            "empty" if count < 2 or processed.last_at == processed.started_at else "completed"
+        ),
     )
 
 
@@ -306,6 +320,8 @@ def sweep(
     models: list[str],
     on_result: Callable[[RunResult], None] | None = None,
     on_error: Callable[[str, Exception], None] | None = None,
+    repeat: int = 1,
+    on_attempt: Callable[[dict], None] | None = None,
 ) -> list[RunResult]:
     """Run the same source and settings across several models, in sequence.
 
@@ -316,19 +332,53 @@ def sweep(
     A sweep is long-running and often unattended, so one model failing to load
     must not discard the results of the ones that already succeeded. Pass
     `on_error` to keep going; without it, the first failure propagates.
+    Repetitions interleave models and share one group ID per model. `on_attempt`
+    receives slot status after each saved result, or on a failed attempt.
     """
+    if isinstance(repeat, bool) or not isinstance(repeat, int) or repeat < 1:
+        raise ValueError("repeat must be a positive integer")
+    if not models or any(not isinstance(key, str) or not key.strip() for key in models):
+        raise ValueError("models must be a nonempty list of model names")
+    if len(set(models)) != len(models):
+        raise ValueError("models must be unique")
+    cfg.validate(resolve=True)
+    group_ids = {key: uuid4().hex for key in models}
     results: list[RunResult] = []
-    for key in models:
-        try:
-            result = run(replace(cfg, model=key))
-        except KeyboardInterrupt:
-            raise
-        except Exception as exc:
-            if on_error is None:
+    for repetition in range(1, repeat + 1):
+        for key in models:
+            attempt = {
+                "group_id": group_ids[key],
+                "model": key,
+                "repetition": repetition,
+                "repeat_count": repeat,
+                "run_id": None,
+            }
+            try:
+                result = run(replace(deepcopy(cfg), model=key))
+            except KeyboardInterrupt:
+                if on_attempt is not None:
+                    on_attempt({**attempt, "status": "interrupted"})
                 raise
-            on_error(key, exc)
-            continue
-        results.append(result)
-        if on_result is not None:
-            on_result(result)
+            except Exception as exc:
+                if on_attempt is not None:
+                    on_attempt({**attempt, "status": "failed", "error_type": type(exc).__name__})
+                if on_error is None:
+                    raise
+                label = key if repeat == 1 else f"{key} (repeat {repetition}/{repeat})"
+                on_error(label, exc)
+                continue
+            result = replace(
+                result,
+                run_id=uuid4().hex,
+                group_id=group_ids[key],
+                repetition=repetition,
+                repeat_count=repeat,
+            )
+            results.append(result)
+            if on_result is not None:
+                on_result(result)
+            if on_attempt is not None:
+                on_attempt({**attempt, "status": result.status, "run_id": result.run_id})
+            if result.status == "interrupted":
+                return results
     return results
