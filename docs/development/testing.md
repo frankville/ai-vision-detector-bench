@@ -42,12 +42,22 @@ Model staging may download public weights. The test itself runs offline, forces 
 `CPU end-to-end` uses only `workflow_dispatch`. After the workflow reaches the default branch, select it under Actions, choose a branch, and click **Run workflow**, or run:
 
 ```bash
-gh workflow run e2e.yml --ref feat/repeated-benchmarks
+gh workflow run e2e.yml --ref main
 ```
 
 GitHub requires the dispatch workflow to exist on the default branch before manual runs are available. See [manual workflow runs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
 
 Both workflows use read-only repository permissions and pinned action commits. Artifacts retain JUnit reports and E2E result JSON/logs for seven days; clips and model weights are excluded. Dependency locking remains part of LAB.3.
+
+The E2E job pins Python 3.12.15, Linux CPU dependencies and build tools in `requirements/e2e.txt`, and the D-FINE checkpoint commit in `E2E_MODEL_REVISION`. It builds without isolated dependency resolution and installs the wheel without resolving new dependencies. The isolated offline cache maps the registered model's `main` reference to that checkpoint. Artifacts include installed versions and the checkpoint commit. This CI pinning does not replace LAB.3's benchmark environment lock.
+
+Refresh the E2E dependency pins with `uv`, then dispatch the workflow on the working branch:
+
+```bash
+uv pip compile pyproject.toml requirements/e2e.in --extra dev --python-version 3.12.15 --python-platform x86_64-manylinux_2_28 --torch-backend cpu --no-annotate --no-header --upgrade -o requirements/e2e.txt
+```
+
+Review version changes and update `E2E_MODEL_REVISION` deliberately when changing checkpoints. The fast PR suite continues to exercise supported dependency ranges on Python 3.10 and 3.12.
 
 ## Input-size regression
 
