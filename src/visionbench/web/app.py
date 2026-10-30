@@ -45,6 +45,7 @@ class StartRequest(BaseModel):
     profile: str | None = None
     pace_fps: float | None = None
     backend: str = "pytorch"
+    revision: str | None = None
 
 
 @app.get("/")
@@ -118,6 +119,7 @@ async def api_start(request: StartRequest) -> dict[str, Any]:
             profile=request.profile,
             pace_fps=request.pace_fps,
             backend=request.backend,
+            revision=request.revision,
         )
         config.validate(resolve=True)
     except (ValueError, RuntimeError) as exc:

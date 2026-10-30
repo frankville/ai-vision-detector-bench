@@ -48,6 +48,28 @@ def outcomes(runs):
     ]
 
 
+@pytest.mark.parametrize("schema", [3, 4])
+def test_checkpoint_identity_persistence_and_aggregation(group, tmp_path, schema):
+    for run in group:
+        run["schema_version"] = schema
+        if schema == 4:
+            run["model"].update(revision="release", checkpoint_commit="a" * 40)
+        (tmp_path / f"{run['run_id']}.json").write_text(json.dumps(run))
+    loaded = report.load_all(tmp_path)
+    aggregate = aggregate_runs(loaded, attempts=outcomes(loaded), root=tmp_path)
+    assert aggregate["model"].get("checkpoint_commit") == ("a" * 40 if schema == 4 else None)
+    if schema == 4:
+        loaded[1]["model"]["checkpoint_commit"] = "b" * 40
+        with pytest.raises(ValueError, match="incompatible"):
+            aggregate_runs(loaded, attempts=outcomes(loaded))
+
+
+def test_mixed_raw_schemas_rejected(group):
+    group[1]["schema_version"] = 4
+    with pytest.raises(ValueError, match="same raw schema"):
+        aggregate_runs(group, attempts=outcomes(group))
+
+
 def test_known_statistics_and_optional_telemetry(group):
     original = copy.deepcopy(group)
     aggregate = aggregate_runs(group, attempts=outcomes(group))

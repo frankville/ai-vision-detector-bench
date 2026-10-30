@@ -130,6 +130,7 @@ def run_cmd(
     save: bool = typer.Option(True, "--save/--no-save"),
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out", help="Results directory."),
     backend: str = typer.Option("pytorch", "--backend", help="Inference runtime: pytorch."),
+    revision: str | None = typer.Option(None, "--revision", help="HF checkpoint branch, tag, or commit."),
 ) -> None:
     """Benchmark one model against one source."""
     config = _validated_config(
@@ -146,6 +147,7 @@ def run_cmd(
         profile=profile,
         pace_fps=pace_fps,
         backend=backend,
+        revision=revision,
     )
     console.print(f"[dim]loading {model}...[/dim]")
     result = run(config)
@@ -177,6 +179,7 @@ def sweep_cmd(
     out: Path = typer.Option(report_mod.DEFAULT_DIR, "--out"),
     backend: str = typer.Option("pytorch", "--backend", help="Inference runtime: pytorch."),
     repeat: int = typer.Option(1, "--repeat", min=1, help="Independent measured runs per model."),
+    revision: str | None = typer.Option(None, "--revision", help="HF revision applied to every sweep model."),
 ) -> None:
     """Run several models against the same source, one after another."""
     keys = _split(models)
@@ -201,6 +204,7 @@ def sweep_cmd(
         profile=profile,
         pace_fps=pace_fps,
         backend=backend,
+        revision=revision,
     )
 
     saved: list[dict] = []

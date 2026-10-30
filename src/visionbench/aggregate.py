@@ -103,8 +103,10 @@ def aggregate_runs(
     members: dict[int, dict] = {}
     run_ids: set[str] = set()
     for run in runs:
-        if run.get("record_type") != "run" or run.get("schema_version") != 3:
-            raise ValueError("only schema v3 raw runs can be aggregated")
+        if run.get("record_type") != "run" or run.get("schema_version") not in (3, 4):
+            raise ValueError("only schema v3/v4 raw runs can be aggregated")
+        if run["schema_version"] != first["schema_version"]:
+            raise ValueError("runs must use the same raw schema version")
         if run.get("group_id") != group_id or run.get("repeat_count") != requested:
             raise ValueError("runs must belong to one repetition group")
         if _signature(run, representative) != signature:
