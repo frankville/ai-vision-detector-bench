@@ -55,10 +55,6 @@ jobs:
           revision = os.environ['E2E_MODEL_REVISION']
           snapshot = Path(snapshot_download('ustc-community/dfine-nano-coco', revision=revision, allow_patterns=['*.json', 'model.safetensors']))
           assert snapshot.name == revision
-          # The registered CLI model resolves main from this isolated offline cache.
-          ref = snapshot.parent.parent / 'refs' / 'main'
-          ref.parent.mkdir(parents=True, exist_ok=True)
-          ref.write_text(revision)
           Path('out/test-artifacts/checkpoint.txt').write_text(revision + '\n')
           print(f'Checkpoint snapshot: {snapshot}')
           PY

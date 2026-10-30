@@ -26,7 +26,7 @@ from visionbench.models import build as build_model
 from visionbench.sources import describe, open_source
 from visionbench.types import Detections, Frame, InferTimings
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 #: Callback signature for live consumers: (frame, detections, timings) -> None
 FrameHook = Callable[[Frame, Detections, InferTimings], None]
@@ -50,11 +50,15 @@ class RunConfig:
     loop: bool = True
     note: str = ""
     backend: str = "pytorch"
+    revision: str | None = None
 
     def __post_init__(self) -> None:
         self.validate()
 
     def validate(self, *, resolve: bool = False) -> None:
+        from visionbench.models.registry import validate_revision
+
+        validate_revision(self.model, self.revision)
         device = self.device
         if resolve:
             from visionbench.models.base import resolve_device
@@ -137,6 +141,7 @@ def run(
             imgsz=cfg.imgsz,
             precision=cfg.precision,
             backend=cfg.backend,
+            revision=cfg.revision,
         )
         resources.callback(detector.unload)
         detector.load()

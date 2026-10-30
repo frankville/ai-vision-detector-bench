@@ -25,7 +25,7 @@ def test_config_rejects_unsupported_settings(settings):
 
 
 def test_backend_appended_without_changing_positional_arguments():
-    assert fields(RunConfig)[-1].name == "backend"
+    assert [item.name for item in fields(RunConfig)][-2:] == ["backend", "revision"]
     config = RunConfig("clip.mp4", "dfine-nano", "cpu", 12.0, 4)
     assert config.duration_s == 12.0
     assert config.max_frames == 4
@@ -51,3 +51,22 @@ def test_config_preserves_source_redaction():
     config = RunConfig("rtsp://user:secret@camera/stream", "dfine-nano")
     assert "secret" not in str(config.redacted())
     assert config.redacted()["backend"] == "pytorch"
+
+
+@pytest.mark.parametrize("revision", ["", " ", "../secret token", 1])
+def test_invalid_revision_rejected(revision):
+    with pytest.raises(ValueError, match="revision"):
+        RunConfig("clip.mp4", "dfine-nano", revision=revision)
+
+
+def test_revision_rejected_for_non_hf_model():
+    with pytest.raises(ValueError, match="only for Hugging Face"):
+        RunConfig("clip.mp4", "yolo11n", revision="main")
+
+
+def test_registry_rejects_unsupported_revision_before_import(monkeypatch):
+    from visionbench.models import registry
+
+    monkeypatch.setattr(registry, "import_module", lambda *a: pytest.fail("backend imported"))
+    with pytest.raises(ValueError, match="only for Hugging Face"):
+        registry.build("yolo11n", revision="main")
