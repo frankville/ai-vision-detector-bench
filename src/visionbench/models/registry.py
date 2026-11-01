@@ -11,6 +11,7 @@ catalogue stays instant.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
@@ -203,12 +204,22 @@ def permissive_keys() -> list[str]:
     return [s.key for s in SPECS if s.permissive]
 
 
+def validate_revision(key: str, revision: str | None) -> None:
+    if revision is None:
+        return
+    if not isinstance(revision, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,254}", revision):
+        raise ValueError("revision must be a Hub branch, tag, or commit")
+    if get(key).factory != _HF:
+        raise ValueError("checkpoint revisions are supported only for Hugging Face models")
+
+
 def build(key: str, **overrides: Any) -> Detector:
     """Instantiate a detector by registry key.
 
     Imports the backend lazily so that a missing optional dependency only bites
     when that particular model is actually requested.
     """
+    validate_revision(key, overrides.get("revision"))
     spec = get(key)
     module_path, _, class_name = spec.factory.partition(":")
     try:

@@ -87,6 +87,7 @@ def test_hf_adapter_with_local_random_detr(tmp_path, monkeypatch):
         assert info["backend"] == "pytorch"
         assert info["precision"] == "fp32"
         assert info["weights"] == str(checkpoint)
+        assert info["checkpoint_commit"] is None
         assert info["input_shape"] == [1, 3, 64, 64]
         assert all(np.isfinite(value) and value >= 0 for value in timings)
         detector.unload()

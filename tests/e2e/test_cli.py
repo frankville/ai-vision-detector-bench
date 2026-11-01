@@ -95,6 +95,8 @@ def test_installed_cli_run_sweep_and_reports(tmp_path):
         "--profile",
         "cpu-e2e",
     ]
+    revision = os.environ.get("E2E_MODEL_REVISION", "066438d3d8f0da137a37b38fdf3368fd4afceced")
+    common.extend(["--revision", revision])
     single_dir = artifacts / "single"
     command("run", [str(executable), "run", *common, "--frames", "3", "--out", str(single_dir)])
     single_paths = list(single_dir.rglob("*.json"))
@@ -120,7 +122,10 @@ def test_installed_cli_run_sweep_and_reports(tmp_path):
         assert records[sweep_dir / reference["path"]]["run_id"] == reference["run_id"]
 
     for data in [single, *raw.values()]:
-        assert data["schema_version"] == 3
+        assert data["schema_version"] == 4
+        assert data["config"]["revision"] == revision
+        assert data["model"]["revision"] == revision
+        assert data["model"]["checkpoint_commit"] == revision
         assert data["status"] == "completed"
         assert data["model"]["device"] == "cpu"
         assert data["model"]["weights"] == "ustc-community/dfine-nano-coco"

@@ -263,7 +263,7 @@ def test_each_repeat_reloads_warms_and_cleans_up(fake_runtime):
     assert events.count("load") == events.count("warmup") == events.count("unload") == 4
     for start in [i for i, event in enumerate(events) if event == "start"]:
         assert events[start - 2:start] == ["info", "reset"]
-    assert all(row.schema_version == 3 for row in rows)
+    assert all(row.schema_version == 4 for row in rows)
 
 
 @pytest.mark.parametrize("count", [0, 1])

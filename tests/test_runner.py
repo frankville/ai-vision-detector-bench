@@ -68,13 +68,14 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     monkeypatch.setattr(runner, "host_info", lambda: {})
     config = runner.RunConfig(
         "clip.mp4", "dfine-nano", device="cpu", max_frames=2,
-        warmup_frames=3, profile="test-cpu",
+        warmup_frames=3, profile="test-cpu", revision="release",
     )
     result = runner.run(config)
 
     assert built_settings["backend"] == "pytorch"
     assert built_settings["precision"] == "fp32"
-    assert result.schema_version == 3
+    assert built_settings["revision"] == result.config["revision"] == "release"
+    assert result.schema_version == 4
     assert result.config["device"] == "cpu"
     assert result.config["backend"] == result.model["backend"] == "pytorch"
     assert result.config["precision"] == result.model["precision"] == "fp32"

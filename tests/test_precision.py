@@ -108,11 +108,13 @@ def fake_hf(monkeypatch):
     state.model = Model()
     state.processor = Processor()
 
-    def load_processor(weights):
+    def load_processor(weights, **options):
+        state.processor_options = options
         state.events.append("download_processor")
         return state.processor
 
-    def load_model(weights):
+    def load_model(weights, **options):
+        state.model_options = options
         state.events.append("download_model")
         return state.model
 
@@ -120,6 +122,14 @@ def fake_hf(monkeypatch):
         AutoImageProcessor=SimpleNamespace(from_pretrained=load_processor),
         AutoModelForObjectDetection=SimpleNamespace(from_pretrained=load_model),
     ))
+    state.commit = "a" * 40
+    state.resolutions = []
+
+    def snapshot(weights, **options):
+        state.resolutions.append((weights, options))
+        return f"/cache/snapshots/{state.commit}/config.json"
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", snapshot)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
     monkeypatch.setattr(torch.backends.mps, "is_available", lambda: True)
@@ -153,6 +163,45 @@ def fake_hf(monkeypatch):
 
     monkeypatch.setattr(torch, "autocast", autocast)
     return state
+
+
+@pytest.mark.parametrize("revision", [None, "release", "refs/pr/1", "b" * 40])
+def test_checkpoint_resolved_once_and_shared_by_loaders(fake_hf, revision):
+    detector = HFDetectionModel("test/checkpoint", device="cpu", revision=revision)
+    detector.load()
+    assert fake_hf.resolutions == [("test/checkpoint", {
+        "revision": revision or "main", "filename": "config.json",
+    })]
+    assert fake_hf.processor_options == fake_hf.model_options == {"revision": fake_hf.commit}
+    assert detector.info()["revision"] == revision
+    assert detector.info()["checkpoint_commit"] == fake_hf.commit
+
+
+def test_failed_revision_does_not_fall_back(fake_hf, monkeypatch):
+    def missing(*args, **kwargs):
+        raise OSError("missing revision")
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", missing)
+    with pytest.raises(OSError, match="missing revision"):
+        HFDetectionModel("test/checkpoint", device="cpu", revision="missing").load()
+    assert fake_hf.events == []
+
+
+def test_non_commit_resolution_rejected(fake_hf):
+    fake_hf.commit = "main"
+    with pytest.raises(ValueError, match="immutable Hub commit"):
+        HFDetectionModel("test/checkpoint", device="cpu").load()
+    assert fake_hf.events == []
+
+
+def test_local_checkpoint_has_no_hub_identity(fake_hf, tmp_path):
+    detector = HFDetectionModel(str(tmp_path), device="cpu")
+    detector.load()
+    assert detector.info()["checkpoint_commit"] is None
+    assert fake_hf.resolutions == []
+    assert fake_hf.processor_options == fake_hf.model_options == {}
+    with pytest.raises(ValueError, match="local checkpoints"):
+        HFDetectionModel(str(tmp_path), device="cpu", revision="main").load()
 
 
 @pytest.mark.parametrize("precision", PRECISIONS)

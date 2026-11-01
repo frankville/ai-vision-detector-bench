@@ -7,7 +7,9 @@ that follows the same contract costs one registry entry and no code.
 
 from __future__ import annotations
 
+import re
 from contextlib import nullcontext
+from pathlib import Path
 from typing import Any
 
 import cv2
@@ -27,6 +29,7 @@ class HFDetectionModel(Detector):
         imgsz: int | None = None,
         precision: str = "fp32",
         backend: str = "pytorch",
+        revision: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -38,6 +41,8 @@ class HFDetectionModel(Detector):
             **kwargs,
         )
         self.weights = weights
+        self.revision = revision
+        self.checkpoint_commit: str | None = None
         self.model = None
         self.processor = None
         self.names: dict[int, str] = {}
@@ -75,10 +80,28 @@ class HFDetectionModel(Detector):
         validate_execution(self.backend, self.precision, self.device)
         from transformers import AutoImageProcessor, AutoModelForObjectDetection
 
-        self.processor = AutoImageProcessor.from_pretrained(self.weights)
+        self.checkpoint_commit = None
+        options = {}
+        if Path(self.weights).is_dir():
+            if self.revision is not None:
+                raise ValueError("Hub revisions cannot be applied to local checkpoints")
+        else:
+            from huggingface_hub import hf_hub_download
+
+            config_path = hf_hub_download(
+                self.weights,
+                filename="config.json",
+                revision=self.revision if self.revision is not None else "main",
+            )
+            commit = Path(config_path).parent.name
+            if not re.fullmatch(r"[0-9a-f]{40}", commit):
+                raise ValueError("checkpoint did not resolve to an immutable Hub commit")
+            self.checkpoint_commit = commit
+            options["revision"] = commit
+        self.processor = AutoImageProcessor.from_pretrained(self.weights, **options)
         self._apply_imgsz()
 
-        model = AutoModelForObjectDetection.from_pretrained(self.weights)
+        model = AutoModelForObjectDetection.from_pretrained(self.weights, **options)
         model.eval()
         if self._half:
             model.half()
@@ -141,4 +164,6 @@ class HFDetectionModel(Detector):
         base = super().info()
         base["precision"] = self.precision
         base["input_shape"] = list(self.input_shape) if self.input_shape else None
+        base["revision"] = self.revision
+        base["checkpoint_commit"] = self.checkpoint_commit
         return base

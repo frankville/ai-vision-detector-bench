@@ -49,7 +49,7 @@ GitHub requires the dispatch workflow to exist on the default branch before manu
 
 Both workflows use read-only repository permissions and pinned action commits. Artifacts retain JUnit reports and E2E result JSON/logs for seven days; clips and model weights are excluded. Dependency locking remains part of LAB.3.
 
-The E2E job pins Python 3.12.15, Linux CPU dependencies and build tools in `requirements/e2e.txt`, and the D-FINE checkpoint commit in `E2E_MODEL_REVISION`. It builds without isolated dependency resolution and installs the wheel without resolving new dependencies. The isolated offline cache maps the registered model's `main` reference to that checkpoint. Artifacts include installed versions and the checkpoint commit. This CI pinning does not replace LAB.3's benchmark environment lock.
+The E2E job pins Python 3.12.15, Linux CPU dependencies and build tools in `requirements/e2e.txt`, and the D-FINE checkpoint commit in `E2E_MODEL_REVISION`. It builds without isolated dependency resolution and installs the wheel without resolving new dependencies. E2E passes that commit through `--revision`, loads offline, and checks persisted checkpoint identity. Artifacts include installed versions and the checkpoint commit. This CI pinning does not replace LAB.3's benchmark environment lock.
 
 Refresh the E2E dependency pins with `uv`, then dispatch the workflow on the working branch:
 
