@@ -230,6 +230,8 @@ or different hosts requires the workload/environment checks planned in the roadm
 
 ## What this does not do
 
+GPU encoding-session policies do not define inference camera capacity. See [GPU video-session limits](docs/hardware-limits.md) for NVIDIA constraints and the current decode/encode scope.
+
 Being explicit, because a benchmark that overstates itself is worse than none.
 
 - **It does not measure accuracy.** Without labelled frames from your own
