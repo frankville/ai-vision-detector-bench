@@ -36,6 +36,8 @@ Before cross-GPU resource comparisons, map telemetry to the physical compute GPU
 - CAP.2: capacity search with explicit drop, latency, resource, and optional temperature/headroom criteria.
 - CAP.3: batching with bounded wait and queue/throughput/latency/energy measurements.
 
+CAP.1/CAP.2 must record effective video backends and separate codec support, driver/session policies, and measured saturation. NVENC limits apply only to encoding workloads; they must not cap CUDA inference or NVDEC stream estimates. See [GPU video-session limits](../hardware-limits.md).
+
 Only validated multicamera SLA results establish cameras per appliance.
 
 ## Phase 3: additional runtimes
