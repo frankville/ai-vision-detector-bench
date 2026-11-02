@@ -48,20 +48,32 @@ def outcomes(runs):
     ]
 
 
-@pytest.mark.parametrize("schema", [3, 4])
+@pytest.mark.parametrize("schema", [3, 4, 5])
 def test_checkpoint_identity_persistence_and_aggregation(group, tmp_path, schema):
     for run in group:
         run["schema_version"] = schema
-        if schema == 4:
+        if schema >= 4:
             run["model"].update(revision="release", checkpoint_commit="a" * 40)
+        if schema == 5:
+            run["source"].update(content_sha256="c" * 64, size_bytes=123)
         (tmp_path / f"{run['run_id']}.json").write_text(json.dumps(run))
     loaded = report.load_all(tmp_path)
     aggregate = aggregate_runs(loaded, attempts=outcomes(loaded), root=tmp_path)
-    assert aggregate["model"].get("checkpoint_commit") == ("a" * 40 if schema == 4 else None)
-    if schema == 4:
+    assert aggregate["model"].get("checkpoint_commit") == ("a" * 40 if schema >= 4 else None)
+    if schema >= 4:
         loaded[1]["model"]["checkpoint_commit"] = "b" * 40
         with pytest.raises(ValueError, match="incompatible"):
             aggregate_runs(loaded, attempts=outcomes(loaded))
+
+
+@pytest.mark.parametrize("field,value", [("content_sha256", "d" * 64), ("size_bytes", 456)])
+def test_different_source_identity_cannot_aggregate(group, field, value):
+    for run in group:
+        run["schema_version"] = 5
+        run["source"].update(content_sha256="c" * 64, size_bytes=123)
+    group[1]["source"][field] = value
+    with pytest.raises(ValueError, match="incompatible"):
+        aggregate_runs(group, attempts=outcomes(group))
 
 
 def test_mixed_raw_schemas_rejected(group):

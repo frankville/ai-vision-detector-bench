@@ -24,9 +24,10 @@ from visionbench.metrics.system import SystemSampler, energy_per_frame_j, now_is
 from visionbench.metrics.timers import RateMeter, Series, StageTimers
 from visionbench.models import build as build_model
 from visionbench.sources import describe, open_source
+from visionbench.sources.identity import identify_source
 from visionbench.types import Detections, Frame, InferTimings
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 #: Callback signature for live consumers: (frame, detections, timings) -> None
 FrameHook = Callable[[Frame, Detections, InferTimings], None]
@@ -130,6 +131,7 @@ def run(
     from the numbers that get written to disk.
     """
     cfg.validate(resolve=True)
+    source_identity = identify_source(cfg.source)
     warnings: list[str] = []
     profile = cfg.profile or default_profile()
 
@@ -251,6 +253,7 @@ def run(
             interrupted = True
             warnings.append("run interrupted by user; results cover the frames completed so far")
 
+    source_identity.verify()
     stats = source.stats()
     elapsed = processed.elapsed_s
     processed_fps = processed.mean_fps
@@ -289,6 +292,7 @@ def run(
         host=host_info(),
         model=model_info,
         source={
+            **source_identity.metadata(),
             "label": describe(cfg.source),
             "mode": cfg.mode,
             "width": stats.width,

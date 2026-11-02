@@ -12,7 +12,7 @@ P1.2 adds independent repetitions, atomic raw persistence, explicit attempt outc
 - P1.2: independent repeated runs, preserved raw results, collision-safe persistence, and separate aggregate statistics.
 - P1.3: compatible-run comparisons, baseline speedups, source/checkpoint identity, environment metadata, and detection-drift checks on equivalent frames.
 
-P1.3 checkpoint identity is implemented: optional HF revisions resolve once for model and processor, and raw results record the immutable commit. Source identity, environment metadata, comparisons, and detection drift remain pending. See [checkpoint identity](../decisions/0004-checkpoint-identity.md).
+P1.3 checkpoint and local-source identity are implemented: HF revisions resolve once for model and processor; raw results record the checkpoint commit and local clip checksum/size. Environment metadata, comparisons, and detection drift remain pending. See [checkpoint identity](../decisions/0004-checkpoint-identity.md) and [source identity](../decisions/0005-source-identity.md).
 
 Keep warmup outside measurement. Preserve current FPS and post-decode E2E definitions; label estimated stream capacity and GPU-only energy explicitly. Read historical results without inventing missing metadata.
 
