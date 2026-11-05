@@ -10,7 +10,7 @@ from visionbench.types import Detections, Frame, InferTimings, SourceStats
 pytestmark = pytest.mark.integration
 
 
-def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch):
+def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch, tmp_path):
     events = []
     built_settings = {}
     image = np.zeros((2, 2, 3), dtype=np.uint8)
@@ -66,8 +66,10 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     monkeypatch.setattr(runner, "open_source", lambda *a, **kw: Source())
     monkeypatch.setattr(runner, "SystemSampler", Sampler)
     monkeypatch.setattr(runner, "host_info", lambda: {})
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"test source")
     config = runner.RunConfig(
-        "clip.mp4", "dfine-nano", device="cpu", max_frames=2,
+        str(clip), "dfine-nano", device="cpu", max_frames=2,
         warmup_frames=3, profile="test-cpu", revision="release",
     )
     result = runner.run(config)
@@ -75,7 +77,7 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     assert built_settings["backend"] == "pytorch"
     assert built_settings["precision"] == "fp32"
     assert built_settings["revision"] == result.config["revision"] == "release"
-    assert result.schema_version == 4
+    assert result.schema_version == 5
     assert result.config["device"] == "cpu"
     assert result.config["backend"] == result.model["backend"] == "pytorch"
     assert result.config["precision"] == result.model["precision"] == "fp32"

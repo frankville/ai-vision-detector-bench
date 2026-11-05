@@ -52,7 +52,9 @@ def _signature(run: dict, representative: dict) -> tuple:
         run.get("config"),
         run.get("host"),
         model,
-        {key: source.get(key) for key in ("label", "mode", "width", "height", "nominal_fps")},
+        {key: source.get(key) for key in (
+            "label", "mode", "width", "height", "nominal_fps", "content_sha256", "size_bytes",
+        )},
     )
 
 
@@ -103,8 +105,8 @@ def aggregate_runs(
     members: dict[int, dict] = {}
     run_ids: set[str] = set()
     for run in runs:
-        if run.get("record_type") != "run" or run.get("schema_version") not in (3, 4):
-            raise ValueError("only schema v3/v4 raw runs can be aggregated")
+        if run.get("record_type") != "run" or run.get("schema_version") not in (3, 4, 5):
+            raise ValueError("only schema v3/v4/v5 raw runs can be aggregated")
         if run["schema_version"] != first["schema_version"]:
             raise ValueError("runs must use the same raw schema version")
         if run.get("group_id") != group_id or run.get("repeat_count") != requested:

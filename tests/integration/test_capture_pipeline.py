@@ -137,6 +137,8 @@ def config(clip):
 
 
 def test_real_runner_excludes_warmup_and_roundtrips_report(clip, detectors, tmp_path):
+    import hashlib
+
     sequences = []
     result = runner.run(config(clip), on_frame=lambda frame, *_: sequences.append(frame.seq))
     assert sequences == list(range(1, len(LEVELS)))
@@ -145,6 +147,8 @@ def test_real_runner_excludes_warmup_and_roundtrips_report(clip, detectors, tmp_
     assert detectors[0].images[3:] == pytest.approx(LEVELS[1:], abs=3)
     assert not detectors[0].loaded
     assert result.status == "completed"
+    assert result.source["content_sha256"] == hashlib.sha256(clip.read_bytes()).hexdigest()
+    assert result.source["size_bytes"] == clip.stat().st_size
     assert result.throughput["frames_processed"] == result.throughput["frames_decoded"] == 7
     assert result.throughput["frames_dropped"] == 0
     assert result.latency["inference_ms"] == {
@@ -163,6 +167,30 @@ def test_real_runner_excludes_warmup_and_roundtrips_report(clip, detectors, tmp_
     assert row.detections_per_frame == 1.0
     assert row.energy_j is None
     assert "local-detector" in report.markdown_table([loaded])
+
+
+@pytest.mark.parametrize("operation", ["modify", "delete", "replace"])
+def test_source_changed_during_run_rejected_after_cleanup(clip, detectors, operation):
+    changed = False
+
+    def change(*args):
+        nonlocal changed
+        if changed:
+            return
+        changed = True
+        if operation == "modify":
+            with clip.open("ab") as stream:
+                stream.write(b"changed")
+        elif operation == "delete":
+            clip.unlink()
+        else:
+            data = clip.read_bytes()
+            clip.unlink()
+            clip.write_bytes(data)
+
+    with pytest.raises(ValueError, match="local source changed"):
+        runner.run(config(clip), on_frame=change)
+    assert changed and not detectors[0].loaded
 
 
 def test_repetitions_open_independent_decoders_and_aggregate(clip, detectors, tmp_path):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
@@ -122,7 +123,9 @@ def test_installed_cli_run_sweep_and_reports(tmp_path):
         assert records[sweep_dir / reference["path"]]["run_id"] == reference["run_id"]
 
     for data in [single, *raw.values()]:
-        assert data["schema_version"] == 4
+        assert data["schema_version"] == 5
+        assert data["source"]["content_sha256"] == hashlib.sha256(clip.read_bytes()).hexdigest()
+        assert data["source"]["size_bytes"] == clip.stat().st_size
         assert data["config"]["revision"] == revision
         assert data["model"]["revision"] == revision
         assert data["model"]["checkpoint_commit"] == revision

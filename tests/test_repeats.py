@@ -126,6 +126,9 @@ def test_callback_failure_is_not_reported_as_model_failure(monkeypatch, result):
 
 @pytest.fixture
 def fake_runtime(monkeypatch):
+    from visionbench.sources.identity import SourceIdentity
+
+    monkeypatch.setattr(runner, "identify_source", lambda _: SourceIdentity())
     events = []
     fail = {}
     image = np.zeros((2, 2, 3), dtype=np.uint8)
@@ -263,7 +266,7 @@ def test_each_repeat_reloads_warms_and_cleans_up(fake_runtime):
     assert events.count("load") == events.count("warmup") == events.count("unload") == 4
     for start in [i for i, event in enumerate(events) if event == "start"]:
         assert events[start - 2:start] == ["info", "reset"]
-    assert all(row.schema_version == 4 for row in rows)
+    assert all(row.schema_version == 5 for row in rows)
 
 
 @pytest.mark.parametrize("count", [0, 1])
