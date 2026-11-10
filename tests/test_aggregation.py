@@ -48,13 +48,13 @@ def outcomes(runs):
     ]
 
 
-@pytest.mark.parametrize("schema", [3, 4, 5])
+@pytest.mark.parametrize("schema", [3, 4, 5, 6])
 def test_checkpoint_identity_persistence_and_aggregation(group, tmp_path, schema):
     for run in group:
         run["schema_version"] = schema
         if schema >= 4:
             run["model"].update(revision="release", checkpoint_commit="a" * 40)
-        if schema == 5:
+        if schema >= 5:
             run["source"].update(content_sha256="c" * 64, size_bytes=123)
         (tmp_path / f"{run['run_id']}.json").write_text(json.dumps(run))
     loaded = report.load_all(tmp_path)
@@ -79,6 +79,16 @@ def test_different_source_identity_cannot_aggregate(group, field, value):
 def test_mixed_raw_schemas_rejected(group):
     group[1]["schema_version"] = 4
     with pytest.raises(ValueError, match="same raw schema"):
+        aggregate_runs(group, attempts=outcomes(group))
+
+
+@pytest.mark.parametrize("key,value", [("packages", {"torch": "changed"}), ("nvidia_driver", "590.1")])
+def test_changed_environment_cannot_aggregate(group, key, value):
+    for run in group:
+        run["schema_version"] = 6
+        run["host"] = {"packages": {"torch": "2.11"}, "nvidia_driver": "580.82.07"}
+    group[1]["host"][key] = value
+    with pytest.raises(ValueError, match="incompatible"):
         aggregate_runs(group, attempts=outcomes(group))
 
 

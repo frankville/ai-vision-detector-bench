@@ -27,7 +27,7 @@ from visionbench.sources import describe, open_source
 from visionbench.sources.identity import identify_source
 from visionbench.types import Detections, Frame, InferTimings
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 #: Callback signature for live consumers: (frame, detections, timings) -> None
 FrameHook = Callable[[Frame, Detections, InferTimings], None]
@@ -133,7 +133,6 @@ def run(
     cfg.validate(resolve=True)
     source_identity = identify_source(cfg.source)
     warnings: list[str] = []
-    profile = cfg.profile or default_profile()
 
     with ExitStack() as resources:
         detector = build_model(
@@ -147,6 +146,8 @@ def run(
         )
         resources.callback(detector.unload)
         detector.load()
+        host = host_info(detector.device)
+        profile = cfg.profile or default_profile(host=host)
 
         source = open_source(cfg.source, mode=cfg.mode, pace_fps=cfg.pace_fps, loop=cfg.loop)
 
@@ -289,7 +290,7 @@ def run(
         started_at=started_wall,
         elapsed_s=round(elapsed, 3),
         config=cfg.redacted(),
-        host=host_info(),
+        host=host,
         model=model_info,
         source={
             **source_identity.metadata(),

@@ -65,7 +65,12 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     monkeypatch.setattr(runner, "build_model", build)
     monkeypatch.setattr(runner, "open_source", lambda *a, **kw: Source())
     monkeypatch.setattr(runner, "SystemSampler", Sampler)
-    monkeypatch.setattr(runner, "host_info", lambda: {})
+    def host_info(device):
+        assert device == "cpu"
+        events.append("host_info")
+        return {"packages": {"torch": "test-version"}}
+
+    monkeypatch.setattr(runner, "host_info", host_info)
     clip = tmp_path / "clip.mp4"
     clip.write_bytes(b"test source")
     config = runner.RunConfig(
@@ -77,7 +82,8 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     assert built_settings["backend"] == "pytorch"
     assert built_settings["precision"] == "fp32"
     assert built_settings["revision"] == result.config["revision"] == "release"
-    assert result.schema_version == 5
+    assert result.schema_version == 6
+    assert result.host["packages"]["torch"] == "test-version"
     assert result.config["device"] == "cpu"
     assert result.config["backend"] == result.model["backend"] == "pytorch"
     assert result.config["precision"] == result.model["precision"] == "fp32"
@@ -85,7 +91,7 @@ def test_measured_run_records_effective_settings_and_excludes_warmup(monkeypatch
     assert result.latency["inference_ms"]["count"] == 2
     assert result.resources["energy_per_frame_j"] is None
     assert events == [
-        "load", "infer", "infer", "infer", "reset", "measurement_start",
+        "load", "host_info", "infer", "infer", "infer", "reset", "measurement_start",
         "infer", "infer", "measurement_stop", "close", "unload",
     ]
 
