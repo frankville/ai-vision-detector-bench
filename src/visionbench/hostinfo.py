@@ -9,10 +9,48 @@ from __future__ import annotations
 import platform
 import re
 import subprocess
-from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import psutil
+
+PACKAGES = (
+    "visionbench", "torch", "torchvision", "transformers", "huggingface-hub",
+    "numpy", "opencv-python", "opencv-python-headless", "pillow", "timm", "psutil",
+)
+
+
+def _package_versions() -> dict:
+    packages = {}
+    for name in PACKAGES:
+        try:
+            packages[name] = version(name)
+        except (PackageNotFoundError, OSError, ValueError):
+            packages[name] = None
+    return packages
+
+
+def _optional(probe):
+    try:
+        return probe()
+    except Exception:
+        return None
+
+
+def _nvidia_driver() -> str | None:
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+            capture_output=True, text=True, timeout=3,
+        )
+        versions = set(result.stdout.split())
+        if result.returncode == 0 and len(versions) == 1:
+            value = versions.pop()
+            if re.fullmatch(r"\d+(?:\.\d+)+", value):
+                return value
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return None
 
 
 def _cpu_model() -> str:
@@ -40,7 +78,7 @@ def _cpu_model() -> str:
     return platform.processor() or platform.machine() or "unknown"
 
 
-def _torch_info() -> dict:
+def _torch_info(device: str | None = None) -> dict:
     try:
         import torch
     except ImportError:
@@ -49,25 +87,41 @@ def _torch_info() -> dict:
     info: dict = {
         "available": True,
         "version": torch.__version__,
-        "cuda_available": torch.cuda.is_available(),
-        "mps_available": bool(
+        "cuda_version": torch.version.cuda,
+        "cudnn_version": None,
+        "device": device,
+        "gpu_name": None,
+        "gpu_total_memory_mb": None,
+        "gpu_capability": None,
+        "cuda_available": _optional(torch.cuda.is_available),
+        "mps_available": _optional(lambda: bool(
             getattr(torch.backends, "mps", None) and torch.backends.mps.is_available()
-        ),
+        )),
+        "settings": {
+            "num_threads": _optional(torch.get_num_threads),
+            "num_interop_threads": _optional(torch.get_num_interop_threads),
+            "cudnn_benchmark": _optional(lambda: torch.backends.cudnn.benchmark),
+            "cudnn_deterministic": _optional(lambda: torch.backends.cudnn.deterministic),
+            "cudnn_allow_tf32": _optional(lambda: torch.backends.cudnn.allow_tf32),
+            "matmul_allow_tf32": _optional(lambda: torch.backends.cuda.matmul.allow_tf32),
+        },
     }
-    if info["cuda_available"]:
+    if info["cuda_available"] and (device is None or device.startswith("cuda")):
         try:
-            info["cuda_version"] = torch.version.cuda
-            info["gpu_name"] = torch.cuda.get_device_name(0)
-            props = torch.cuda.get_device_properties(0)
+            selected = torch.device(device or "cuda")
+            index = selected.index if selected.index is not None else torch.cuda.current_device()
+            info["device"] = f"cuda:{index}"
+            info["gpu_name"] = torch.cuda.get_device_name(index)
+            props = torch.cuda.get_device_properties(index)
             info["gpu_total_memory_mb"] = round(props.total_memory / 1024**2, 1)
             info["gpu_capability"] = f"{props.major}.{props.minor}"
+            info["cudnn_version"] = torch.backends.cudnn.version()
         except Exception:
             pass
     return info
 
 
-@lru_cache(maxsize=1)
-def host_info() -> dict:
+def host_info(device: str | None = None) -> dict:
     """Hardware and software fingerprint for a run.
 
     Deliberately excludes the machine's hostname. Result files are meant to be
@@ -76,6 +130,7 @@ def host_info() -> dict:
     the model ran. Use `--profile` to label a machine with a name you chose.
     """
     virtual = psutil.virtual_memory()
+    torch_info = _torch_info(device)
     return {
         "os": f"{platform.system()} {platform.release()}",
         "platform": platform.platform(),
@@ -85,17 +140,19 @@ def host_info() -> dict:
         "cpu_cores_logical": psutil.cpu_count(logical=True),
         "ram_total_gb": round(virtual.total / 1024**3, 2),
         "python": platform.python_version(),
-        "torch": _torch_info(),
+        "torch": torch_info,
+        "packages": _package_versions(),
+        "nvidia_driver": _nvidia_driver() if torch_info.get("cuda_available") else None,
     }
 
 
-def default_profile() -> str:
+def default_profile(*, host: dict | None = None) -> str:
     """A short slug naming this machine, used to group result files.
 
     Override with --profile when the auto-derived name is not meaningful, for
     example on a rented GPU instance where the hostname is a random string.
     """
-    info = host_info()
+    info = host if host is not None else host_info()
     cpu = info["cpu_model"]
     torch_info = info["torch"]
     if torch_info.get("gpu_name"):

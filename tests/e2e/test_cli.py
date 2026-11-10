@@ -123,7 +123,11 @@ def test_installed_cli_run_sweep_and_reports(tmp_path):
         assert records[sweep_dir / reference["path"]]["run_id"] == reference["run_id"]
 
     for data in [single, *raw.values()]:
-        assert data["schema_version"] == 5
+        assert data["schema_version"] == 6
+        assert data["host"]["python"]
+        for package in ("visionbench", "torch", "torchvision", "transformers", "opencv-python"):
+            assert data["host"]["packages"][package]
+        assert data["host"]["torch"]["device"] == "cpu"
         assert data["source"]["content_sha256"] == hashlib.sha256(clip.read_bytes()).hexdigest()
         assert data["source"]["size_bytes"] == clip.stat().st_size
         assert data["config"]["revision"] == revision

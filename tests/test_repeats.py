@@ -194,7 +194,7 @@ def fake_runtime(monkeypatch):
     monkeypatch.setattr(runner, "build_model", lambda *a, **kw: Detector())
     monkeypatch.setattr(runner, "open_source", open_source)
     monkeypatch.setattr(runner, "SystemSampler", Sampler)
-    monkeypatch.setattr(runner, "host_info", lambda: {})
+    monkeypatch.setattr(runner, "host_info", lambda *a: {})
     return events, fail
 
 
@@ -266,7 +266,7 @@ def test_each_repeat_reloads_warms_and_cleans_up(fake_runtime):
     assert events.count("load") == events.count("warmup") == events.count("unload") == 4
     for start in [i for i, event in enumerate(events) if event == "start"]:
         assert events[start - 2:start] == ["info", "reset"]
-    assert all(row.schema_version == 5 for row in rows)
+    assert all(row.schema_version == 6 for row in rows)
 
 
 @pytest.mark.parametrize("count", [0, 1])
